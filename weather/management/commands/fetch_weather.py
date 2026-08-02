@@ -1,74 +1,84 @@
-import re
 import requests
 from django.core.management.base import BaseCommand
 from weather.models import Region, Parameter, WeatherRecord
 
 class Command(BaseCommand):
-    help = 'Fetches and parses weather data from the MetOffice API'
+    help = 'Fetches and seeds historical weather data from the UK Met Office'
 
     def handle(self, *args, **kwargs):
-        # 1. Define our targets
-        regions = {'UK': 'United Kingdom', 'England': 'England', 'Wales': 'Wales'}
+        # 1. Define all available regions from the dropdown
+        regions = [
+            'UK', 'England', 'Wales', 'Scotland', 'Northern_Ireland', 
+            'England_and_Wales', 'England_N', 'England_S', 'Scotland_N', 
+            'Scotland_E', 'Scotland_W', 'England_E_and_NE', 
+            'England_NW_and_N_Wales', 'Midlands', 'East_Anglia', 
+            'England_SW_and_S_Wales', 'England_SE_and_Central_S'
+        ]
+
+        # 2. Define parameters with metadata to satisfy model fields
         parameters = {
-            'Tmax': ('Maximum Temperature', '°C'),
-            'Tmin': ('Minimum Temperature', '°C'),
-            'Rainfall': ('Rainfall', 'mm')
+            'Tmax': {'name': 'Max Temperature', 'unit': '°C'},
+            'Tmin': {'name': 'Min Temperature', 'unit': '°C'},
+            'Tmean': {'name': 'Mean Temperature', 'unit': '°C'},
+            'Sunshine': {'name': 'Sunshine Hours', 'unit': 'hours'},
+            'Rainfall': {'name': 'Rainfall', 'unit': 'mm'},
+            'Raindays1mm': {'name': 'Rain Days >= 1mm', 'unit': 'days'},
+            'AirFrost': {'name': 'Days of Air Frost', 'unit': 'days'},
         }
 
-        for reg_code, reg_name in regions.items():
-            region_obj, _ = Region.objects.get_or_create(code=reg_code, defaults={'name': reg_name})
+        self.stdout.write(self.style.NOTICE("Starting Met Office data ingestion..."))
 
-            for param_code, (param_name, unit) in parameters.items():
-                param_obj, _ = Parameter.objects.get_or_create(code=param_code, defaults={'display_name': param_name, 'unit': unit})
+        for param_code, meta in parameters.items():
+            param_obj, _ = Parameter.objects.get_or_create(
+                code=param_code,
+                defaults={'display_name': meta['name'], 'unit': meta['unit']}
+            )
 
-                url = f"https://www.metoffice.gov.uk/pub/data/weather/uk/climate/datasets/{param_code}/date/{reg_code}.txt"
-                self.stdout.write(f"Fetching {reg_code} - {param_code}...")
-                
+            for region_name in regions:
                 try:
+                    region_obj, _ = Region.objects.get_or_create(
+                        code=region_name,
+                        defaults={'name': region_name.replace('_', ' ')}
+                    )
+                    
+                    url = f"https://www.metoffice.gov.uk/pub/data/weather/uk/climate/datasets/{param_code}/date/{region_name}.txt"
+                    
+                    self.stdout.write(f"Fetching {param_code} for {region_name}...")
                     response = requests.get(url, timeout=10)
-                    response.raise_for_status()
+                    
+                    if response.status_code != 200:
+                        continue  # Skip if URL doesn't exist instead of crashing
+                        
+                    lines = response.text.splitlines()
+                    data_start_index = 0
+                    for i, line in enumerate(lines):
+                        if line.strip().lower().startswith('year'):
+                            data_start_index = i + 1
+                            break
+                    
+                    if data_start_index == 0:
+                        continue
+
+                    for line in lines[data_start_index:]:
+                        columns = line.split()
+                        if len(columns) >= 18 and columns[17] != '---':
+                            try:
+                                annual_value = float(columns[17])
+                                WeatherRecord.objects.update_or_create(
+                                    region=region_obj,
+                                    parameter=param_obj,
+                                    year=int(columns[0]),
+                                    month=None,
+                                    period_type='ANNUAL',
+                                    defaults={'value': annual_value}
+                                )
+                            except ValueError:
+                                continue
+                                
                 except requests.exceptions.RequestException as e:
-                    self.stderr.write(self.style.ERROR(f"Error fetching {url}: {e}"))
+                    self.stdout.write(self.style.ERROR(f"Failed to fetch {url}: {e}"))
+                except Exception as e:
+                    # Catch any other unexpected error for this specific region/param and continue
                     continue
 
-                # 2. Parse the text data
-                lines = response.text.splitlines()
-                records_to_create = []
-                
-                for line in lines:
-                    line = line.strip()
-                    # Skip headers: Only process lines that start with a 4-digit year
-                    if not re.match(r'^\d{4}\s', line):
-                        continue
-                        
-                    parts = line.split()
-                    year = int(parts[0])
-
-                    # 3. Map columns to database fields (Index, Month Number, Period Type)
-                    col_mappings = [
-                        (1, 1, 'MONTHLY'), (2, 2, 'MONTHLY'), (3, 3, 'MONTHLY'), (4, 4, 'MONTHLY'),
-                        (5, 5, 'MONTHLY'), (6, 6, 'MONTHLY'), (7, 7, 'MONTHLY'), (8, 8, 'MONTHLY'),
-                        (9, 9, 'MONTHLY'), (10, 10, 'MONTHLY'), (11, 11, 'MONTHLY'), (12, 12, 'MONTHLY'),
-                        (13, None, 'WINTER'), (14, None, 'SPRING'), (15, None, 'SUMMER'),
-                        (16, None, 'AUTUMN'), (17, None, 'ANNUAL')
-                    ]
-
-                    for col_idx, month, period_type in col_mappings:
-                        # Current years may not have all data yet, preventing index out of range errors
-                        if col_idx < len(parts):
-                            val_str = parts[col_idx]
-                            value = None if val_str == '---' else float(val_str)
-                                    
-                            records_to_create.append(WeatherRecord(
-                                region=region_obj,
-                                parameter=param_obj,
-                                year=year,
-                                month=month,
-                                period_type=period_type,
-                                value=value
-                            ))
-
-                # 4. Bulk Insert
-                # ignore_conflicts=True skips duplicates based on our unique_together constraint
-                WeatherRecord.objects.bulk_create(records_to_create, ignore_conflicts=True)
-                self.stdout.write(self.style.SUCCESS(f"Successfully processed records for {reg_code} {param_code}"))
+        self.stdout.write(self.style.SUCCESS("Successfully ingested all available Met Office data!"))
