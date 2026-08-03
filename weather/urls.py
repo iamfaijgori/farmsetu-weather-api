@@ -1,12 +1,10 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import RegionViewSet, ParameterViewSet, WeatherRecordViewSet
+from .views import WeatherRecordViewSet
 
-# A router automatically creates standard RESTful endpoints for our ViewSets
 router = DefaultRouter()
-router.register(r'regions', RegionViewSet)
-router.register(r'parameters', ParameterViewSet)
-router.register(r'records', WeatherRecordViewSet, basename='weatherrecord')
+# This creates the /api/weather/ endpoint
+router.register(r'weather', WeatherRecordViewSet, basename='weather')
 
 urlpatterns = [
     path('', include(router.urls)),
