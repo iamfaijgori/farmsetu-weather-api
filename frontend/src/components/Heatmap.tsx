@@ -3,12 +3,11 @@ import React from 'react';
 interface HeatmapProps {
   selectedRegions: string[];
   timeRange: string;
-  selectedCondition: string;
+  selectedCondition: string[]; // Now an array
   hasDataLoaded: boolean;
 }
 
-// 1. Dynamic Color Scales Engine
-const SCALES = {
+const SCALES: Record<string, any> = {
   temp: {
     label: 'Temperature (°C)',
     colors: ['bg-purple-200', 'bg-purple-300', 'bg-purple-400', 'bg-purple-500', 'bg-purple-600', 'bg-purple-700'],
@@ -32,57 +31,68 @@ const SCALES = {
   }
 };
 
+const COND_LABELS: Record<string, string> = { tmin: 'Min Temp', tmax: 'Max Temp', tmean: 'Mean Temp', sun: 'Sunshine', rain: 'Rainfall' };
+
 export const Heatmap: React.FC<HeatmapProps> = ({
   selectedRegions,
   timeRange,
   selectedCondition,
   hasDataLoaded
 }) => {
-  // Loophole Fix 1: If "All Conditions" is selected, force it to 'tmean' for the heatmap
-  const isAllConditions = selectedCondition === 'all';
-  const activeMetric = isAllConditions ? 'tmean' : selectedCondition;
-  
-  // Determine which scale to use based on the active metric
-  const scaleType = activeMetric.includes('t') ? 'temp' : activeMetric === 'rain' ? 'rain' : 'sun';
-  const currentScale = SCALES[scaleType];
+  const isMultiRegion = selectedRegions.length > 1;
 
-  // Map Time Range to Columns
   const columns = timeRange === 'monthly' ? ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
     : timeRange === 'seasonal' ? ['WIN', 'SPR', 'SUM', 'AUT', 'ANN']
     : ['2020', '2021', '2022', '2023', '2024'];
 
-  // 2. Generate Mock Matrix Data
   const generateMatrixData = () => {
-    if (!hasDataLoaded) return [];
+    if (!hasDataLoaded || selectedCondition.length === 0) return [];
     
-    return selectedRegions.map((region, rIdx) => {
-      const rowData = columns.map((col, cIdx) => {
-        // Create realistic-looking variations based on condition type and cell position
-        let base = scaleType === 'temp' ? 8 : scaleType === 'rain' ? 80 : 100;
-        let variance = Math.sin(cIdx) * (scaleType === 'temp' ? 12 : 50);
-        let value = Number((base + variance + (rIdx * 1.5)).toFixed(1));
-        
-        // Ensure no negative sunshine/rainfall
-        if (scaleType !== 'temp' && value < 0) value = Math.abs(value);
-        return value;
+    if (isMultiRegion) {
+      // RULE 2: Y-Axis = Regions. All rows use the single selected condition.
+      const activeMetric = selectedCondition[0];
+      const scaleType = activeMetric.includes('t') ? 'temp' : activeMetric === 'rain' ? 'rain' : 'sun';
+      
+      return selectedRegions.map((region, rIdx) => {
+        const rowData = columns.map((col, cIdx) => {
+          let base = scaleType === 'temp' ? 8 : scaleType === 'rain' ? 80 : 100;
+          let variance = Math.sin(cIdx) * (scaleType === 'temp' ? 12 : 50);
+          let value = Number((base + variance + (rIdx * 1.5)).toFixed(1));
+          if (scaleType !== 'temp' && value < 0) value = Math.abs(value);
+          return { value, scaleType };
+        });
+        return { rowLabel: region, data: rowData };
       });
-      return { region, data: rowData };
-    });
+    } else {
+      // RULE 1: Y-Axis = Conditions. Each row uses its own specific scale.
+      return selectedCondition.map((cond, rIdx) => {
+        const scaleType = cond.includes('t') ? 'temp' : cond === 'rain' ? 'rain' : 'sun';
+        const rowData = columns.map((col, cIdx) => {
+          let base = scaleType === 'temp' ? 8 : scaleType === 'rain' ? 80 : 100;
+          let variance = Math.sin(cIdx) * (scaleType === 'temp' ? 12 : 50);
+          let value = Number((base + variance + (rIdx * 1.5)).toFixed(1));
+          if (scaleType !== 'temp' && value < 0) value = Math.abs(value);
+          return { value, scaleType };
+        });
+        return { rowLabel: COND_LABELS[cond], data: rowData };
+      });
+    }
   };
 
   const matrixData = generateMatrixData();
+  
+  // Determine which legends to render at the bottom based on active data
+  const activeScaleKeys = Array.from(new Set(matrixData.flatMap(row => row.data.map(d => d.scaleType))));
 
   return (
     <section className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
-      
-      {/* Header Area */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">Distribution Heatmap</h2>
           <p className="text-sm text-slate-500 mt-1">
-            {isAllConditions 
-              ? <span>Currently mapping <strong>Mean Temperature</strong>. Select a specific condition above to change this map.</span>
-              : `Mapping distribution of ${currentScale.label} across selected timeframes.`}
+            {isMultiRegion 
+              ? `Comparing ${COND_LABELS[selectedCondition[0]]} across multiple regions.`
+              : `Comparing multiple conditions for ${selectedRegions[0]}.`}
           </p>
         </div>
       </div>
@@ -95,38 +105,29 @@ export const Heatmap: React.FC<HeatmapProps> = ({
         <div className="w-full overflow-x-auto pb-4">
           <div className="min-w-[700px]">
             
-            {/* Grid Header (Time Columns) */}
             <div className="flex mb-2">
-              <div className="w-32 shrink-0"></div> {/* Empty space for Region column */}
+              <div className="w-32 shrink-0"></div>
               {columns.map((col) => (
-                <div key={col} className="flex-1 text-center text-[11px] font-semibold text-slate-400 tracking-wider">
-                  {col}
-                </div>
+                <div key={col} className="flex-1 text-center text-[11px] font-semibold text-slate-400 tracking-wider">{col}</div>
               ))}
             </div>
 
-            {/* Grid Rows (Regions) */}
             <div className="flex flex-col gap-1.5">
               {matrixData.map((row) => (
-                <div key={row.region} className="flex items-center group">
-                  {/* Region Label */}
+                <div key={row.rowLabel} className="flex items-center group">
                   <div className="w-32 shrink-0 text-sm font-medium text-slate-600 truncate pr-4 group-hover:text-blue-600 transition-colors">
-                    {row.region}
+                    {row.rowLabel}
                   </div>
                   
-                  {/* Data Cells */}
-                  {row.data.map((val, idx) => {
-                    const colorIndex = currentScale.getThresholdIndex(val);
+                  {row.data.map((cell, idx) => {
+                    const currentScale = SCALES[cell.scaleType];
+                    const colorIndex = currentScale.getThresholdIndex(cell.value);
                     const bgColor = currentScale.colors[colorIndex];
                     const textColor = currentScale.textColors[colorIndex];
 
                     return (
-                      <div 
-                        key={`${row.region}-${idx}`} 
-                        className={`flex-1 mx-0.5 h-10 flex items-center justify-center rounded-md text-sm font-medium transition-all duration-300 hover:scale-[1.05] hover:shadow-md cursor-default ${bgColor} ${textColor}`}
-                        title={`${row.region} - ${columns[idx]}: ${val}`}
-                      >
-                        {val}
+                      <div key={`${row.rowLabel}-${idx}`} className={`flex-1 mx-0.5 h-10 flex items-center justify-center rounded-md text-sm font-medium transition-all duration-300 hover:scale-[1.05] hover:shadow-md cursor-default ${bgColor} ${textColor}`} title={`${row.rowLabel} - ${columns[idx]}: ${cell.value}`}>
+                        {cell.value}
                       </div>
                     );
                   })}
@@ -134,16 +135,23 @@ export const Heatmap: React.FC<HeatmapProps> = ({
               ))}
             </div>
 
-            {/* Legend (Bottom) */}
-            <div className="flex items-center gap-3 mt-8 pt-6 border-t border-slate-100">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Scale:</span>
-              <div className="flex flex-wrap gap-2">
-                {currentScale.ranges.map((range, idx) => (
-                  <div key={idx} className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 ${currentScale.colors[idx]} ${currentScale.textColors[idx]}`}>
-                    {range.label}
+            {/* Dynamic Legends */}
+            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-4">
+              {activeScaleKeys.map(scaleKey => {
+                const scale = SCALES[scaleKey];
+                return (
+                  <div key={scaleKey} className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider w-32 shrink-0">{scale.label}:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {scale.ranges.map((range: any, idx: number) => (
+                        <div key={idx} className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 ${scale.colors[idx]} ${scale.textColors[idx]}`}>
+                          {range.label}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
 
           </div>
