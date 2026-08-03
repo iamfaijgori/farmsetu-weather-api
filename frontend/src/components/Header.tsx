@@ -6,7 +6,9 @@ interface HeaderProps {
   onRegionChange?: (regions: string[]) => void;
   selectedTimeRange?: string;
   onTimeRangeChange?: (range: string) => void;
-  selectedCondition?: string[]; // Now an array
+  selectedYear?: string;
+  onYearChange?: (year: string) => void;
+  selectedCondition?: string[];
   onConditionChange?: (conditions: string[]) => void;
   onLoadData?: () => void;
   onClear?: () => void;
@@ -16,11 +18,11 @@ const DEFAULT_REGIONS = ['UK', 'England', 'Wales', 'Scotland', 'Northern Ireland
 
 const TIME_RANGES = [
   { label: 'Select Duration', value: '' },
-  { label: 'Monthly View (Jan - Dec)', value: 'monthly' },
-  { label: 'Seasonal View (Win, Spr, Sum, Aut, Ann)', value: 'seasonal' },
-  { label: 'Yearly: Last 1 Year', value: '1y' },
-  { label: 'Yearly: Last 5 Years', value: '5y' },
-  { label: 'Yearly: Last 10 Years', value: '10y' },
+  { label: 'Monthly View', value: 'monthly' },
+  { label: 'Seasonal View', value: 'seasonal' },
+  { label: 'Previous Calendar Year', value: '1y' },
+  { label: 'Last 5 Calendar Years', value: '5y' },
+  { label: 'Last 10 Calendar Years', value: '10y' },
   { label: 'All Historic Years', value: 'all' },
 ];
 
@@ -32,12 +34,17 @@ const CONDITIONS = [
   { label: 'Total Rainfall', value: 'rain' },
 ];
 
+// Generate years from 2025 down to 1884
+const YEARS = Array.from({ length: 2025 - 1884 + 1 }, (_, i) => (2025 - i).toString());
+
 export const Header: React.FC<HeaderProps> = ({
   availableRegions = DEFAULT_REGIONS,
   selectedRegions = ['UK'],
   onRegionChange,
   selectedTimeRange = '',
   onTimeRangeChange,
+  selectedYear = '2025',
+  onYearChange,
   selectedCondition = [],
   onConditionChange,
   onLoadData,
@@ -45,13 +52,14 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isRegionOpen, setIsRegionOpen] = useState(false);
   const [isTimeOpen, setIsTimeOpen] = useState(false);
+  const [isYearOpen, setIsYearOpen] = useState(false);
   const [isConditionOpen, setIsConditionOpen] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
-        setIsRegionOpen(false); setIsTimeOpen(false); setIsConditionOpen(false);
+        setIsRegionOpen(false); setIsTimeOpen(false); setIsYearOpen(false); setIsConditionOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -60,58 +68,40 @@ export const Header: React.FC<HeaderProps> = ({
 
   const toggleRegion = (region: string) => {
     let updated = selectedRegions.includes(region) ? selectedRegions.filter(r => r !== region) : [...selectedRegions, region];
-    
-    // RESTRICTION: If jumping from 1 to multiple regions, force condition down to 1 item
-    if (updated.length > 1 && selectedCondition.length > 1) {
-      if (onConditionChange) onConditionChange([selectedCondition[0]]);
-    }
+    if (updated.length > 1 && selectedCondition.length > 1 && onConditionChange) onConditionChange([selectedCondition[0]]);
     if (onRegionChange) onRegionChange(updated);
   };
 
   const toggleCondition = (condValue: string) => {
-    if (selectedRegions.length > 1) {
-      // If multiple regions active, force SINGLE condition selection
-      if (onConditionChange) onConditionChange([condValue]);
-    } else {
-      // If single region active, allow MULTIPLE condition selections
+    if (selectedRegions.length > 1 && onConditionChange) {
+      onConditionChange([condValue]);
+    } else if (onConditionChange) {
       let updated = selectedCondition.includes(condValue) ? selectedCondition.filter(c => c !== condValue) : [...selectedCondition, condValue];
-      if (onConditionChange) onConditionChange(updated);
+      onConditionChange(updated);
     }
   };
 
-  const getRegionLabel = () => {
-    if (selectedRegions.length === 0) return 'Select Region';
-    if (selectedRegions.length === 1) return selectedRegions[0];
-    return `${selectedRegions.length} Regions`;
-  };
-
-  const getConditionLabel = () => {
-    if (selectedCondition.length === 0) return 'Select Condition';
-    if (selectedCondition.length === CONDITIONS.length) return 'All Conditions';
-    if (selectedCondition.length === 1) return CONDITIONS.find(c => c.value === selectedCondition[0])?.label || 'Condition';
-    return `${selectedCondition.length} Conditions`;
-  };
-
   const currentRangeObj = TIME_RANGES.find(t => t.value === selectedTimeRange) || TIME_RANGES[0];
+  const requiresYear = selectedTimeRange === 'monthly' || selectedTimeRange === 'seasonal';
 
   return (
-    <header ref={headerRef} className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+    <header 
+      ref={headerRef} 
+      // Sticky header logic applied here
+      className="w-full bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm px-6 py-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-4 z-50"
+    >
       <h1 className="text-[20px] font-bold text-[#1e293b] tracking-tight whitespace-nowrap">Weather Monitoring System</h1>
 
       <div className="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
         
         {/* Regions Dropdown */}
         <div className="relative">
-          <button onClick={() => { setIsRegionOpen(!isRegionOpen); setIsTimeOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
-            <span className={selectedRegions.length === 0 ? 'text-slate-400' : 'text-slate-700'}>{getRegionLabel()}</span>
+          <button onClick={() => { setIsRegionOpen(!isRegionOpen); setIsTimeOpen(false); setIsYearOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
+            <span className={selectedRegions.length === 0 ? 'text-slate-400' : 'text-slate-700'}>{selectedRegions.length === 0 ? 'Select Region' : selectedRegions.length === 1 ? selectedRegions[0] : `${selectedRegions.length} Regions`}</span>
             <svg className={`w-4 h-4 text-slate-400 transition-transform ${isRegionOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
           </button>
           {isRegionOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 max-h-64 overflow-y-auto">
-              <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-blue-600 hover:bg-slate-50 rounded-lg cursor-pointer border-b border-slate-100 mb-1">
-                <input type="checkbox" checked={selectedRegions.length === availableRegions.length} onChange={() => onRegionChange && onRegionChange(selectedRegions.length === availableRegions.length ? [] : [...availableRegions])} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                <span>Select All</span>
-              </label>
               {availableRegions.map((region) => (
                 <label key={region} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg cursor-pointer">
                   <input type="checkbox" checked={selectedRegions.includes(region)} onChange={() => toggleRegion(region)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
@@ -124,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Time Dropdown */}
         <div className="relative">
-          <button onClick={() => { setIsTimeOpen(!isTimeOpen); setIsRegionOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
+          <button onClick={() => { setIsTimeOpen(!isTimeOpen); setIsRegionOpen(false); setIsYearOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
             <span className={selectedTimeRange === '' ? 'text-slate-400' : 'text-slate-700'}>{currentRangeObj.label}</span>
             <svg className={`w-4 h-4 text-slate-400 transition-transform ${isTimeOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
           </button>
@@ -137,20 +127,31 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
+        {/* Dynamic Year Dropdown */}
+        {requiresYear && (
+          <div className="relative">
+            <button onClick={() => { setIsYearOpen(!isYearOpen); setIsRegionOpen(false); setIsTimeOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
+              <span>{selectedYear}</span>
+              <svg className={`w-4 h-4 text-slate-400 transition-transform ${isYearOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+            </button>
+            {isYearOpen && (
+              <div className="absolute right-0 mt-2 w-28 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-60 overflow-y-auto">
+                {YEARS.map((yr) => (
+                  <button key={yr} onClick={() => { if (onYearChange) onYearChange(yr); setIsYearOpen(false); }} className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${selectedYear === yr ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}>{yr}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Condition Checkbox Dropdown */}
         <div className="relative">
-          <button onClick={() => { setIsConditionOpen(!isConditionOpen); setIsRegionOpen(false); setIsTimeOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium shadow-xs transition-colors">
+          <button onClick={() => { setIsConditionOpen(!isConditionOpen); setIsRegionOpen(false); setIsTimeOpen(false); setIsYearOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium shadow-xs transition-colors">
             <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-            <span className={selectedCondition.length === 0 ? 'text-slate-400' : 'text-slate-700'}>{getConditionLabel()}</span>
+            <span className={selectedCondition.length === 0 ? 'text-slate-400' : 'text-slate-700'}>{selectedCondition.length === 0 ? 'Select Condition' : selectedCondition.length === 1 ? CONDITIONS.find(c => c.value === selectedCondition[0])?.label : `${selectedCondition.length} Conditions`}</span>
           </button>
           {isConditionOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 max-h-64 overflow-y-auto">
-              {selectedRegions.length <= 1 && (
-                <label className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-blue-600 hover:bg-slate-50 rounded-lg cursor-pointer border-b border-slate-100 mb-1">
-                  <input type="checkbox" checked={selectedCondition.length === CONDITIONS.length} onChange={() => onConditionChange && onConditionChange(selectedCondition.length === CONDITIONS.length ? [] : CONDITIONS.map(c => c.value))} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                  <span>Select All Conditions</span>
-                </label>
-              )}
               {CONDITIONS.map((cond) => (
                 <label key={cond.value} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg cursor-pointer">
                   <input type="checkbox" checked={selectedCondition.includes(cond.value)} onChange={() => toggleCondition(cond.value)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />

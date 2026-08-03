@@ -3,15 +3,17 @@ import { Header } from './components/Header';
 import { StatCards } from './components/StatCards';
 import { TimelineChart } from './components/TimelineChart';
 import { Heatmap } from './components/Heatmap';
+import { DataTable } from './components/DataTable';
 
 export default function App() {
   const [draftRegions, setDraftRegions] = useState<string[]>(['UK']);
   const [draftTime, setDraftTime] = useState<string>('');
-  
-  // 1. Condition states are now arrays! Default is empty.
+  const [draftYear, setDraftYear] = useState<string>('2025'); // New Year State
   const [draftCondition, setDraftCondition] = useState<string[]>([]);
+  
   const [activeRegions, setActiveRegions] = useState<string[]>([]);
   const [activeTime, setActiveTime] = useState<string>('');
+  const [activeYear, setActiveYear] = useState<string>('2025');
   const [activeCondition, setActiveCondition] = useState<string[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +22,7 @@ export default function App() {
     setIsLoading(true);
     setActiveRegions(draftRegions);
     setActiveTime(draftTime);
+    setActiveYear(draftYear);
     setActiveCondition(draftCondition);
     setTimeout(() => setIsLoading(false), 600);
   };
@@ -27,13 +30,14 @@ export default function App() {
   const handleClear = () => {
     setDraftRegions([]);
     setDraftTime('');
-    setDraftCondition([]); // Reset to empty array
+    setDraftYear('2025');
+    setDraftCondition([]);
     setActiveRegions([]);
     setActiveTime('');
+    setActiveYear('2025');
     setActiveCondition([]);
   };
 
-  // Ensure ALL THREE fields are populated before rendering data
   const hasDataLoaded = activeRegions.length > 0 && activeTime !== '' && activeCondition.length > 0;
 
   const kpiData = hasDataLoaded 
@@ -47,6 +51,8 @@ export default function App() {
         onRegionChange={setDraftRegions}
         selectedTimeRange={draftTime}
         onTimeRangeChange={setDraftTime}
+        selectedYear={draftYear}
+        onYearChange={setDraftYear}
         selectedCondition={draftCondition}
         onConditionChange={setDraftCondition}
         onLoadData={handleLoadData}
@@ -66,6 +72,14 @@ export default function App() {
         <Heatmap 
           selectedRegions={activeRegions}
           timeRange={activeTime}
+          selectedCondition={activeCondition}
+          hasDataLoaded={hasDataLoaded}
+        />
+
+        <DataTable 
+          selectedRegions={activeRegions}
+          timeRange={activeTime}
+          selectedYear={activeYear}
           selectedCondition={activeCondition}
           hasDataLoaded={hasDataLoaded}
         />
