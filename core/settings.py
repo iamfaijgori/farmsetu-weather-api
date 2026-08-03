@@ -148,6 +148,5 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173/", # Example local frontend
-    "https://your-friend-frontend.vercel.app", # Example deployed frontend
+    "http://localhost:5174", 
 ]
