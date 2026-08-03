@@ -8,12 +8,12 @@ import { DataTable } from './components/DataTable';
 export default function App() {
   const [draftRegions, setDraftRegions] = useState<string[]>(['UK']);
   const [draftTime, setDraftTime] = useState<string>('');
-  const [draftYear, setDraftYear] = useState<string>('2025'); // New Year State
+  const [draftYear, setDraftYear] = useState<string>('2026'); // Updated to 2026
   const [draftCondition, setDraftCondition] = useState<string[]>([]);
   
   const [activeRegions, setActiveRegions] = useState<string[]>([]);
   const [activeTime, setActiveTime] = useState<string>('');
-  const [activeYear, setActiveYear] = useState<string>('2025');
+  const [activeYear, setActiveYear] = useState<string>('2026'); // Updated to 2026
   const [activeCondition, setActiveCondition] = useState<string[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -30,11 +30,11 @@ export default function App() {
   const handleClear = () => {
     setDraftRegions([]);
     setDraftTime('');
-    setDraftYear('2025');
+    setDraftYear('2026'); // Updated to 2026
     setDraftCondition([]);
     setActiveRegions([]);
     setActiveTime('');
-    setActiveYear('2025');
+    setActiveYear('2026'); // Updated to 2026
     setActiveCondition([]);
   };
 

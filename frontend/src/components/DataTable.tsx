@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 
 interface DataTableProps {
   selectedRegions: string[];
@@ -8,7 +8,6 @@ interface DataTableProps {
   hasDataLoaded: boolean;
 }
 
-// Figma UI Weather Icons
 const ConditionIcon = ({ type }: { type: string }) => {
   if (type === 'Clear') return <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
   if (type === 'Rainy') return <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14v2m-4-2v2m8-2v2M3 16.5a4.5 4.5 0 01.5-8.9h.5a5.5 5.5 0 0110.8 0h.5a4.5 4.5 0 01.5 8.9v.1A2.5 2.5 0 0113 19h-2a2.5 2.5 0 01-2.5-2.5v-.1z" /></svg>;
@@ -16,15 +15,22 @@ const ConditionIcon = ({ type }: { type: string }) => {
   return <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>;
 };
 
+// Helper to format condition labels nicely
+const formatCondition = (c: string) => ({
+  tmin: 'Min Temp', tmax: 'Max Temp', tmean: 'Mean Temp', sun: 'Sunshine', rain: 'Rainfall'
+}[c] || c);
+
 export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange, selectedYear, selectedCondition, hasDataLoaded }) => {
   const [viewMode, setViewMode] = useState<'master' | 'matrix'>('master');
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
+  
+  const isMultiRegion = selectedRegions.length > 1;
 
   // 1. Column Definition Logic
   const getMatrixColumns = () => {
-    let cols = ['Location'];
-    if (['1y', '5y', '10y', 'all'].includes(timeRange)) cols = ['Year', 'Location'];
+    let cols = [isMultiRegion ? 'Location' : 'Condition'];
+    if (['1y', '5y', '10y', 'all'].includes(timeRange)) cols = ['Year', isMultiRegion ? 'Location' : 'Condition'];
     
     if (timeRange === 'monthly' || timeRange === '1y') {
       cols = [...cols, 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -38,15 +44,13 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
 
   const masterColumns = ['DATE', 'LOCATION', 'MIN TEMP', 'MAX TEMP', 'MEAN TEMP', 'SUNSHINE (HRS)', 'RAINFALL (MM)', 'CONDITION'];
   const currentColumns = viewMode === 'matrix' ? getMatrixColumns() : masterColumns;
-  const activeMetricForMatrix = selectedCondition[0] || 'tmean';
 
-  // 2. Generate Mock Data based on View Mode
+  // 2. Generate Data based on View Mode
   const generateData = () => {
     if (!hasDataLoaded) return [];
     let data: any[] = [];
     
     if (viewMode === 'master') {
-      // Figma UI Flattened Data
       for (let i = 0; i < 45; i++) {
         const isFrosty = i % 7 === 0;
         const isRainy = i % 3 === 0;
@@ -63,25 +67,47 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
         });
       }
     } else {
-      // Met Office Text File Matrix Data
-      const baseVal = activeMetricForMatrix.includes('rain') ? 80 : 12;
-      selectedRegions.forEach((reg, rIdx) => {
-        const years = ['1y', '5y', '10y', 'all'].includes(timeRange) ? [2024, 2023, 2022] : [selectedYear];
-        years.forEach(yr => {
-          let row: any = { id: `${reg}-${yr}`, col0: reg };
-          let offset = 1;
-          if (['1y', '5y', '10y', 'all'].includes(timeRange)) {
-            row.col0 = yr;
-            row.col1 = reg;
-            offset = 2;
-          }
-          // Fill remaining dynamic columns
-          for (let i = offset; i < currentColumns.length; i++) {
-            row[`col${i}`] = Number((baseVal + Math.sin(i) * 5 + rIdx).toFixed(1));
-          }
-          data.push(row);
+      const yearsList = ['1y', '5y', '10y', 'all'].includes(timeRange) ? [2025, 2024, 2023] : [selectedYear];
+      
+      if (isMultiRegion) {
+        const activeMetricForMatrix = selectedCondition[0] || 'tmean';
+        const baseVal = activeMetricForMatrix.includes('rain') ? 80 : 12;
+        selectedRegions.forEach((reg, rIdx) => {
+          yearsList.forEach(yr => {
+            let row: any = { id: `${reg}-${yr}`, col0: reg };
+            let offset = 1;
+            if (['1y', '5y', '10y', 'all'].includes(timeRange)) {
+              row.col0 = yr;
+              row.col1 = reg;
+              offset = 2;
+            }
+            for (let i = offset; i < currentColumns.length; i++) {
+              row[`col${i}`] = Number((baseVal + Math.sin(i) * 5 + rIdx).toFixed(1));
+            }
+            data.push(row);
+          });
         });
-      });
+      } else {
+        const condNameMap = selectedCondition.map(formatCondition);
+        selectedCondition.forEach((cond, cIdx) => {
+          const baseVal = cond === 'rain' ? 80 : cond === 'sun' ? 120 : cond === 'tmax' ? 15 : 5;
+          const condName = condNameMap[cIdx];
+          
+          yearsList.forEach(yr => {
+            let row: any = { id: `${cond}-${yr}`, col0: condName };
+            let offset = 1;
+            if (['1y', '5y', '10y', 'all'].includes(timeRange)) {
+              row.col0 = yr;
+              row.col1 = condName;
+              offset = 2;
+            }
+            for (let i = offset; i < currentColumns.length; i++) {
+              row[`col${i}`] = Number((baseVal + Math.sin(i) * (cond === 'sun' ? 30 : 5) + cIdx).toFixed(1));
+            }
+            data.push(row);
+          });
+        });
+      }
     }
     return data;
   };
@@ -90,12 +116,15 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
   const totalPages = Math.ceil(tableData.length / rowsPerPage);
   const paginatedData = tableData.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
-  // 3. Export CSV correctly mapped to the current toggle mode
   const handleExportCSV = () => {
     if (tableData.length === 0) return;
     const csvRows = [currentColumns.join(',')];
     tableData.forEach(row => {
-      const rowValues = currentColumns.map((_, idx) => row[`col${idx}`]);
+      // In master mode, the 8th column is 'condition'. In matrix mode, it's just 'col7'.
+      const rowValues = currentColumns.map((_, idx) => {
+         if (viewMode === 'master' && idx === 7) return row.condition;
+         return row[`col${idx}`];
+      });
       csvRows.push(rowValues.join(','));
     });
     const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
@@ -106,42 +135,30 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
     a.click();
   };
 
+  const getTableSubtitle = () => {
+    if (!hasDataLoaded || viewMode !== 'matrix') return null;
+    if (isMultiRegion) {
+      return <>Matrix mapping <strong className="text-blue-600">{formatCondition(selectedCondition[0]).toUpperCase()}</strong> across multiple regions for <strong>{selectedYear}</strong>.</>;
+    }
+    return <>Matrix mapping multiple conditions for <strong className="text-blue-600">{selectedRegions[0]}</strong> in <strong>{selectedYear}</strong>.</>;
+  };
+
   return (
     <section className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm mb-12">
-      
-      {/* Header, Toggle & Export */}
       <div className="flex flex-col md:flex-row md:items-center justify-between p-6 border-b border-slate-100 gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">Detailed Weather Records</h2>
-          {hasDataLoaded && viewMode === 'matrix' && (
-            <p className="text-xs text-slate-500 mt-1">Matrix currently mapping: <span className="font-semibold text-blue-600">{activeMetricForMatrix.toUpperCase()}</span></p>
-          )}
+          <p className="text-xs text-slate-500 mt-1">{getTableSubtitle()}</p>
         </div>
 
         <div className="flex items-center gap-4">
-          {/* View Toggle */}
           <div className="flex bg-slate-100 p-1 rounded-xl">
-            <button 
-              onClick={() => { setViewMode('master'); setCurrentPage(1); }}
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${viewMode === 'master' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Master List
-            </button>
-            <button 
-              onClick={() => { setViewMode('matrix'); setCurrentPage(1); }}
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${viewMode === 'matrix' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Matrix View
-            </button>
+            <button onClick={() => { setViewMode('master'); setCurrentPage(1); }} className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${viewMode === 'master' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}>Master List</button>
+            <button onClick={() => { setViewMode('matrix'); setCurrentPage(1); }} className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${viewMode === 'matrix' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}>Matrix View</button>
           </div>
 
-          <button 
-            onClick={handleExportCSV}
-            disabled={!hasDataLoaded}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 disabled:opacity-50 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            Export
+          <button onClick={handleExportCSV} disabled={!hasDataLoaded} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 disabled:opacity-50 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> Export
           </button>
         </div>
       </div>
@@ -155,9 +172,7 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
               <thead>
                 <tr className="bg-slate-50/50">
                   {currentColumns.map((head) => (
-                    <th key={head} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">
-                      {head}
-                    </th>
+                    <th key={head} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{head}</th>
                   ))}
                 </tr>
               </thead>
@@ -165,8 +180,19 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
                 {paginatedData.map((row) => (
                   <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
                     {currentColumns.map((col, idx) => {
+                      
+                      // Fix: Render the condition cell perfectly aligned in the 8th column loop
+                      if (viewMode === 'master' && idx === 7) {
+                        return (
+                          <td key={idx} className="px-6 py-4 text-sm font-medium text-slate-600">
+                            <div className="flex items-center gap-2">
+                              <ConditionIcon type={row.condition} /> {row.condition}
+                            </div>
+                          </td>
+                        );
+                      }
+
                       const val = row[`col${idx}`];
-                      // Styling overrides for Master View Date/Location/Negative Temps
                       let cellClass = "px-6 py-4 text-sm font-medium text-slate-600 whitespace-nowrap";
                       if (viewMode === 'master') {
                         if (idx === 1) cellClass = "px-6 py-4 text-sm font-semibold text-blue-500";
@@ -181,23 +207,14 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
                         </td>
                       );
                     })}
-                    {/* Render Icon column if Master View */}
-                    {viewMode === 'master' && (
-                      <td className="px-6 py-4 text-sm font-medium text-slate-600 flex items-center gap-2">
-                        <ConditionIcon type={row.condition} /> {row.condition}
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex flex-col sm:flex-row items-center justify-between p-6 border-t border-slate-100 gap-4">
-            <span className="text-sm text-slate-400">
-              Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, tableData.length)} of {tableData.length} records
-            </span>
+            <span className="text-sm text-slate-400">Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, tableData.length)} of {tableData.length} records</span>
             <div className="flex items-center gap-1">
               <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">Prev</button>
               {Array.from({ length: totalPages }).map((_, i) => (

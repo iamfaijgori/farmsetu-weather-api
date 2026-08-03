@@ -34,8 +34,8 @@ const CONDITIONS = [
   { label: 'Total Rainfall', value: 'rain' },
 ];
 
-// Generate years from 2025 down to 1884
-const YEARS = Array.from({ length: 2025 - 1884 + 1 }, (_, i) => (2025 - i).toString());
+// Generate years from 2026 down to 1884
+const YEARS = Array.from({ length: 2026 - 1884 + 1 }, (_, i) => (2026 - i).toString());
 
 export const Header: React.FC<HeaderProps> = ({
   availableRegions = DEFAULT_REGIONS,
@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
   onRegionChange,
   selectedTimeRange = '',
   onTimeRangeChange,
-  selectedYear = '2025',
+  selectedYear = '2026', // Updated default to 2026
   onYearChange,
   selectedCondition = [],
   onConditionChange,
@@ -87,7 +87,6 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header 
       ref={headerRef} 
-      // Sticky header logic applied here
       className="w-full bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm px-6 py-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-4 z-50"
     >
       <h1 className="text-[20px] font-bold text-[#1e293b] tracking-tight whitespace-nowrap">Weather Monitoring System</h1>
