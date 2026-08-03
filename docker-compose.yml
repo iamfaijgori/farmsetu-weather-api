@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   db:
@@ -24,6 +23,20 @@ services:
       - DATABASE_URL=postgres://postgres_user:securepassword123@db:5432/farmsetu_db
     depends_on:
       - db
+  
+  frontend:
+    build:
+      context: ./frontend # Change this if your React folder is named differently
+    container_name: weather_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevents local node_modules from overriding container ones
+    depends_on:
+      - web # Assumes your Django service is named 'api' or 'backend'
+    environment:
+      - NODE_ENV=development
 
 volumes:
   postgres_data:
