@@ -1,178 +1,226 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 interface HeaderProps {
-  availableRegions?: string[];
-  selectedRegions?: string[];
-  onRegionChange?: (regions: string[]) => void;
-  selectedTimeRange?: string;
-  onTimeRangeChange?: (range: string) => void;
-  selectedYear?: string;
-  onYearChange?: (year: string) => void;
-  selectedCondition?: string[];
-  onConditionChange?: (conditions: string[]) => void;
-  onLoadData?: () => void;
-  onClear?: () => void;
+  selectedRegions: string[];
+  onRegionChange: (regions: string[]) => void;
+  selectedTimeRange: string;
+  onTimeRangeChange: (time: string) => void;
+  selectedYear: string;
+  onYearChange: (year: string) => void;
+  selectedCondition: string[];
+  onConditionChange: (conditions: string[]) => void;
+  onLoadData: () => void;
+  onClear: () => void;
 }
 
-const DEFAULT_REGIONS = ['UK', 'England', 'Wales', 'Scotland', 'Northern Ireland', 'England and Wales', 'England N', 'England S', 'Scotland N', 'Scotland E', 'Scotland W', 'England E and NE', 'England NW and N Wales', 'Midlands', 'East Anglia', 'England SW and S Wales', 'England SE and Central S'];
-
-const TIME_RANGES = [
-  { label: 'Select Duration', value: '' },
-  { label: 'Monthly View', value: 'monthly' },
-  { label: 'Seasonal View', value: 'seasonal' },
-  { label: 'Previous Calendar Year', value: '1y' },
-  { label: 'Last 5 Calendar Years', value: '5y' },
-  { label: 'Last 10 Calendar Years', value: '10y' },
-  { label: 'All Historic Years', value: 'all' },
+const REGIONS = [
+  'UK', 'England', 'Wales', 'Scotland', 'Northern Ireland',
+  'England and Wales', 'England N', 'England S', 'Scotland N', 'Scotland E',
+  'Scotland W', 'England E and NE', 'England NW and N Wales', 'Midlands',
+  'East Anglia', 'England SW and S Wales', 'England SE and Central S'
 ];
 
 const CONDITIONS = [
-  { label: 'Min Temperature', value: 'tmin' },
-  { label: 'Max Temperature', value: 'tmax' },
-  { label: 'Mean Temperature', value: 'tmean' },
-  { label: 'Sunshine Hours', value: 'sun' },
-  { label: 'Total Rainfall', value: 'rain' },
+  { id: 'tmin', label: 'Min Temperature' },
+  { id: 'tmax', label: 'Max Temperature' },
+  { id: 'tmean', label: 'Mean Temperature' },
+  { id: 'sun', label: 'Sunshine Hours' },
+  { id: 'rain', label: 'Total Rainfall' }
 ];
 
-// Generate years from 2026 down to 1884
-const YEARS = Array.from({ length: 2026 - 1884 + 1 }, (_, i) => (2026 - i).toString());
+const TIME_RANGES = [
+  { id: 'monthly', label: 'Monthly View' },
+  { id: 'seasonal', label: 'Seasonal View' },
+  { id: '1y', label: 'Previous Calendar Year' },
+  { id: '5y', label: 'Last 5 Calendar Years' },
+  { id: '10y', label: 'Last 10 Calendar Years' },
+  { id: 'all', label: 'All Historic Years' }
+];
 
 export const Header: React.FC<HeaderProps> = ({
-  availableRegions = DEFAULT_REGIONS,
-  selectedRegions = ['UK'],
-  onRegionChange,
-  selectedTimeRange = '',
-  onTimeRangeChange,
-  selectedYear = '2026', // Updated default to 2026
-  onYearChange,
-  selectedCondition = [],
-  onConditionChange,
-  onLoadData,
-  onClear,
+  selectedRegions, onRegionChange,
+  selectedTimeRange, onTimeRangeChange,
+  selectedYear, onYearChange,
+  selectedCondition, onConditionChange,
+  onLoadData, onClear
 }) => {
-  const [isRegionOpen, setIsRegionOpen] = useState(false);
-  const [isTimeOpen, setIsTimeOpen] = useState(false);
-  const [isYearOpen, setIsYearOpen] = useState(false);
-  const [isConditionOpen, setIsConditionOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
+  // Close dropdowns if clicked outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
-        setIsRegionOpen(false); setIsTimeOpen(false); setIsYearOpen(false); setIsConditionOpen(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
+        setOpenDropdown(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const toggleRegion = (region: string) => {
-    let updated = selectedRegions.includes(region) ? selectedRegions.filter(r => r !== region) : [...selectedRegions, region];
-    if (updated.length > 1 && selectedCondition.length > 1 && onConditionChange) onConditionChange([selectedCondition[0]]);
-    if (onRegionChange) onRegionChange(updated);
+  // Generate Years from 1884 to Current Year
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 1883 }, (_, i) => (currentYear - i).toString());
+  const isMultiYear = ['1y', '5y', '10y', 'all'].includes(selectedTimeRange);
+
+  // Dynamic Label Helpers
+  const getRegionLabel = () => {
+    if (selectedRegions.length === 0) return 'Select Region';
+    if (selectedRegions.length === REGIONS.length) return 'All Regions';
+    if (selectedRegions.length === 1) return selectedRegions[0];
+    return `${selectedRegions.length} Regions`;
   };
 
-  const toggleCondition = (condValue: string) => {
-    if (selectedRegions.length > 1 && onConditionChange) {
-      onConditionChange([condValue]);
-    } else if (onConditionChange) {
-      let updated = selectedCondition.includes(condValue) ? selectedCondition.filter(c => c !== condValue) : [...selectedCondition, condValue];
-      onConditionChange(updated);
-    }
+  const getConditionLabel = () => {
+    if (selectedCondition.length === 0) return 'Select Condition';
+    if (selectedCondition.length === CONDITIONS.length) return 'All Conditions';
+    if (selectedCondition.length === 1) return CONDITIONS.find(c => c.id === selectedCondition[0])?.label || '';
+    return `${selectedCondition.length} Conditions`;
   };
 
-  const currentRangeObj = TIME_RANGES.find(t => t.value === selectedTimeRange) || TIME_RANGES[0];
-  const requiresYear = selectedTimeRange === 'monthly' || selectedTimeRange === 'seasonal';
+  // Select All Handlers
+  const handleSelectAllRegions = (checked: boolean) => {
+    onRegionChange(checked ? [...REGIONS] : []);
+  };
+
+  const handleSelectAllConditions = (checked: boolean) => {
+    onConditionChange(checked ? CONDITIONS.map(c => c.id) : []);
+  };
 
   return (
-    <header 
-      ref={headerRef} 
-      className="w-full bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm px-6 py-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-4 z-50"
-    >
-      <h1 className="text-[20px] font-bold text-[#1e293b] tracking-tight whitespace-nowrap">Weather Monitoring System</h1>
+    <div ref={headerRef} className="w-full bg-white rounded-2xl p-4 sm:p-5 flex flex-col xl:flex-row items-center justify-between shadow-sm border border-slate-200 mb-6 gap-4 z-50 relative">
+      
+      {/* Title */}
+      <div className="flex-shrink-0">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight">Weather Monitoring System</h1>
+      </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-3 w-full md:w-auto">
+      {/* Controls Container */}
+      <div className="flex flex-wrap items-center justify-center xl:justify-end gap-3 w-full">
         
-        {/* Regions Dropdown */}
+        {/* REGION DROPDOWN */}
         <div className="relative">
-          <button onClick={() => { setIsRegionOpen(!isRegionOpen); setIsTimeOpen(false); setIsYearOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
-            <span className={selectedRegions.length === 0 ? 'text-slate-400' : 'text-slate-700'}>{selectedRegions.length === 0 ? 'Select Region' : selectedRegions.length === 1 ? selectedRegions[0] : `${selectedRegions.length} Regions`}</span>
-            <svg className={`w-4 h-4 text-slate-400 transition-transform ${isRegionOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          {isRegionOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 max-h-64 overflow-y-auto">
-              {availableRegions.map((region) => (
-                <label key={region} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg cursor-pointer">
-                  <input type="checkbox" checked={selectedRegions.includes(region)} onChange={() => toggleRegion(region)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                  <span>{region}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Time Dropdown */}
-        <div className="relative">
-          <button onClick={() => { setIsTimeOpen(!isTimeOpen); setIsRegionOpen(false); setIsYearOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
-            <span className={selectedTimeRange === '' ? 'text-slate-400' : 'text-slate-700'}>{currentRangeObj.label}</span>
-            <svg className={`w-4 h-4 text-slate-400 transition-transform ${isTimeOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          {isTimeOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-60 overflow-y-auto">
-              {TIME_RANGES.map((range) => (
-                <button key={range.value} onClick={() => { if (onTimeRangeChange) onTimeRangeChange(range.value); setIsTimeOpen(false); }} className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${selectedTimeRange === range.value ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}>{range.label}</button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Dynamic Year Dropdown */}
-        {requiresYear && (
-          <div className="relative">
-            <button onClick={() => { setIsYearOpen(!isYearOpen); setIsRegionOpen(false); setIsTimeOpen(false); setIsConditionOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors">
-              <span>{selectedYear}</span>
-              <svg className={`w-4 h-4 text-slate-400 transition-transform ${isYearOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-            </button>
-            {isYearOpen && (
-              <div className="absolute right-0 mt-2 w-28 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-1 max-h-60 overflow-y-auto">
-                {YEARS.map((yr) => (
-                  <button key={yr} onClick={() => { if (onYearChange) onYearChange(yr); setIsYearOpen(false); }} className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${selectedYear === yr ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}>{yr}</button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Condition Checkbox Dropdown */}
-        <div className="relative">
-          <button onClick={() => { setIsConditionOpen(!isConditionOpen); setIsRegionOpen(false); setIsTimeOpen(false); setIsYearOpen(false); }} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium shadow-xs transition-colors">
-            <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-            <span className={selectedCondition.length === 0 ? 'text-slate-400' : 'text-slate-700'}>{selectedCondition.length === 0 ? 'Select Condition' : selectedCondition.length === 1 ? CONDITIONS.find(c => c.value === selectedCondition[0])?.label : `${selectedCondition.length} Conditions`}</span>
-          </button>
-          {isConditionOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 max-h-64 overflow-y-auto">
-              {CONDITIONS.map((cond) => (
-                <label key={cond.value} className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-lg cursor-pointer">
-                  <input type="checkbox" checked={selectedCondition.includes(cond.value)} onChange={() => toggleCondition(cond.value)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                  <span>{cond.label}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 ml-2">
-          <button onClick={onClear} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-medium transition-colors">Clear</button>
           <button 
-            onClick={onLoadData}
-            disabled={selectedTimeRange === '' || selectedRegions.length === 0 || selectedCondition.length === 0}
-            className="flex items-center gap-2 px-5 py-2 bg-[#2b82fb] hover:bg-blue-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl text-sm font-medium shadow-sm transition-colors"
+            onClick={() => setOpenDropdown(openDropdown === 'region' ? null : 'region')}
+            className="flex items-center justify-between w-40 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors"
+          >
+            <span className="truncate">{getRegionLabel()}</span>
+            <svg className="w-4 h-4 text-slate-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          
+          {openDropdown === 'region' && (
+            <div className="absolute top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50 max-h-80 overflow-y-auto">
+              <label className="flex items-center px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-slate-300 text-blue-500 focus:ring-blue-500 mr-3 cursor-pointer w-4 h-4"
+                  checked={selectedRegions.length === REGIONS.length}
+                  onChange={(e) => handleSelectAllRegions(e.target.checked)}
+                />
+                <span className="text-sm font-bold text-slate-800">Select All</span>
+              </label>
+              {REGIONS.map(region => (
+                <label key={region} className="flex items-center px-4 py-2 hover:bg-slate-50 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-slate-300 text-blue-500 focus:ring-blue-500 mr-3 cursor-pointer w-4 h-4"
+                    checked={selectedRegions.includes(region)}
+                    onChange={(e) => {
+                      if (e.target.checked) onRegionChange([...selectedRegions, region]);
+                      else onRegionChange(selectedRegions.filter(r => r !== region));
+                    }}
+                  />
+                  <span className="text-sm text-slate-600">{region}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* DURATION DROPDOWN (Native Select for simplicity) */}
+        <select 
+          value={selectedTimeRange}
+          onChange={(e) => onTimeRangeChange(e.target.value)}
+          className="w-44 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        >
+          <option value="" disabled>Select Duration</option>
+          {TIME_RANGES.map(tr => (
+            <option key={tr.id} value={tr.id}>{tr.label}</option>
+          ))}
+        </select>
+
+        {/* YEAR DROPDOWN (Native Select) */}
+        <select 
+          value={selectedYear}
+          onChange={(e) => onYearChange(e.target.value)}
+          disabled={isMultiYear}
+          className={`w-28 px-4 py-2 bg-white border rounded-xl text-sm font-medium shadow-xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${isMultiYear ? 'border-slate-100 text-slate-300 bg-slate-50' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}
+        >
+          {years.map(y => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+
+        {/* CONDITION DROPDOWN */}
+        <div className="relative">
+          <button 
+            onClick={() => setOpenDropdown(openDropdown === 'condition' ? null : 'condition')}
+            className="flex items-center justify-between w-44 px-4 py-2 bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-sm font-medium text-slate-700 shadow-xs transition-colors"
+          >
+            <span className="truncate">{getConditionLabel()}</span>
+            <svg className="w-4 h-4 text-slate-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          
+          {openDropdown === 'condition' && (
+            <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50">
+              <label className="flex items-center px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                <input 
+                  type="checkbox" 
+                  className="rounded border-slate-300 text-blue-500 focus:ring-blue-500 mr-3 cursor-pointer w-4 h-4"
+                  checked={selectedCondition.length === CONDITIONS.length}
+                  onChange={(e) => handleSelectAllConditions(e.target.checked)}
+                />
+                <span className="text-sm font-bold text-slate-800">Select All</span>
+              </label>
+              {CONDITIONS.map(cond => (
+                <label key={cond.id} className="flex items-center px-4 py-2 hover:bg-slate-50 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-slate-300 text-blue-500 focus:ring-blue-500 mr-3 cursor-pointer w-4 h-4"
+                    checked={selectedCondition.includes(cond.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) onConditionChange([...selectedCondition, cond.id]);
+                      else onConditionChange(selectedCondition.filter(c => c !== cond.id));
+                    }}
+                  />
+                  <span className="text-sm text-slate-600">{cond.label}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ACTIONS */}
+        <div className="flex items-center gap-2 border-l border-slate-200 pl-3 ml-1">
+          <button 
+            onClick={onClear}
+            className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors"
+          >
+            Clear
+          </button>
+          <button 
+            onClick={() => {
+              setOpenDropdown(null); // Close dropdowns on load
+              onLoadData();
+            }}
+            disabled={selectedRegions.length === 0 || selectedTimeRange === '' || selectedCondition.length === 0}
+            className="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors"
           >
             Load Data
           </button>
         </div>
+
       </div>
-    </header>
+    </div>
   );
 };
