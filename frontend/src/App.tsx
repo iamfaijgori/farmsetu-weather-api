@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { StatCards } from './components/StatCards';
 import { TimelineChart } from './components/TimelineChart';
@@ -7,17 +7,39 @@ import { DataTable } from './components/DataTable';
 import { fetchWeatherData } from './services/weatherService';
 
 export default function App() {
+  // 1. FIXED: Set the Draft States to your desired defaults
   const [draftRegions, setDraftRegions] = useState<string[]>(['UK']);
-  const [draftTime, setDraftTime] = useState<string>('');
+  const [draftTime, setDraftTime] = useState<string>('monthly');
   const [draftYear, setDraftYear] = useState<string>('2026');
-  const [draftCondition, setDraftCondition] = useState<string[]>([]);
+  const [draftCondition, setDraftCondition] = useState<string[]>(['tmin']);
+  
   const [backendData, setBackendData] = useState<any[]>([]);
-  const [activeRegions, setActiveRegions] = useState<string[]>([]);
-  const [activeTime, setActiveTime] = useState<string>('');
+  
+  // 2. FIXED: Set the Active States to match the defaults so the UI knows what to render immediately
+  const [activeRegions, setActiveRegions] = useState<string[]>(['UK']);
+  const [activeTime, setActiveTime] = useState<string>('monthly');
   const [activeYear, setActiveYear] = useState<string>('2026');
-  const [activeCondition, setActiveCondition] = useState<string[]>([]);
+  const [activeCondition, setActiveCondition] = useState<string[]>(['tmin']);
   
   const [isLoading, setIsLoading] = useState(false);
+
+  // 3. FIXED: Add a useEffect hook to automatically load the default data on first page load
+  useEffect(() => {
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchWeatherData(['UK'], 'monthly', '2026');
+        setBackendData(data);
+      } catch (error) {
+        console.error("Failed to load initial data:", error);
+        setBackendData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadInitialData();
+  }, []); // The empty array ensures this only runs once when the app starts
 
   const handleLoadData = async () => {
     setIsLoading(true);
@@ -28,7 +50,6 @@ export default function App() {
     setActiveCondition(draftCondition);
 
     try {
-      // Fetch the real data from Django
       const data = await fetchWeatherData(draftRegions, draftTime, draftYear);
       setBackendData(data);
     } catch (error) {
@@ -48,12 +69,11 @@ export default function App() {
     setActiveTime('');
     setActiveYear('2026');
     setActiveCondition([]);
-    setBackendData([]); // Clear the table data as well
+    setBackendData([]); 
   };
 
   const hasDataLoaded = activeRegions.length > 0 && activeTime !== '' && activeCondition.length > 0;
 
-  // Dynamically calculate KPIs based on the real backend data
   const calculateKPIs = (data: any[]) => {
     if (!data || data.length === 0) return { minTemp: 0, maxTemp: 0, meanTemp: 0, sunshineHours: 0, totalRainfall: 0 };
 
@@ -95,7 +115,7 @@ export default function App() {
         <StatCards data={kpiData} />
         
         <TimelineChart
-          data={backendData} // <-- Passed the real data here
+          data={backendData} 
           selectedRegions={activeRegions}
           timeRange={activeTime}
           selectedCondition={activeCondition}
@@ -103,7 +123,7 @@ export default function App() {
         />
 
         <Heatmap 
-          data={backendData} // <-- Passed the real data here
+          data={backendData} 
           selectedRegions={activeRegions}
           timeRange={activeTime}
           selectedCondition={activeCondition}
