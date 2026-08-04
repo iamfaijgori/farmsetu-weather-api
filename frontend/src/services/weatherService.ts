@@ -14,7 +14,8 @@ export const fetchWeatherData = async (
     const params: any = {};
     
     if (regions && regions.length > 0) {
-      params.region = regions; // Axios automatically handles this array
+      // 1. OUTGOING TRANSLATOR: Convert "Northern Ireland" to "Northern_Ireland"
+      params.region = regions.map(r => r.replace(/ /g, '_')); 
     }
     
     if (duration) {
@@ -28,7 +29,16 @@ export const fetchWeatherData = async (
 
     const response = await axios.get(url, { params });
     
-    // Because we disabled Django's pagination, response.data is our clean array!
+    // 2. INCOMING TRANSLATOR: Convert "Northern_Ireland" back to "Northern Ireland"
+    // This ensures the data maps perfectly to your Heatmap and Table rows
+    if (Array.isArray(response.data)) {
+      const formattedData = response.data.map((record: any) => ({
+        ...record,
+        region: record.region ? record.region.replace(/_/g, ' ') : record.region
+      }));
+      return formattedData;
+    }
+    
     return response.data;
     
   } catch (error) {

@@ -5,54 +5,75 @@ import { TimelineChart } from './components/TimelineChart';
 import { Heatmap } from './components/Heatmap';
 import { DataTable } from './components/DataTable';
 import { fetchWeatherData } from './services/weatherService';
+
 export default function App() {
   const [draftRegions, setDraftRegions] = useState<string[]>(['UK']);
   const [draftTime, setDraftTime] = useState<string>('');
-  const [draftYear, setDraftYear] = useState<string>('2026'); // Updated to 2026
+  const [draftYear, setDraftYear] = useState<string>('2026');
   const [draftCondition, setDraftCondition] = useState<string[]>([]);
   const [backendData, setBackendData] = useState<any[]>([]);
   const [activeRegions, setActiveRegions] = useState<string[]>([]);
   const [activeTime, setActiveTime] = useState<string>('');
-  const [activeYear, setActiveYear] = useState<string>('2026'); // Updated to 2026
+  const [activeYear, setActiveYear] = useState<string>('2026');
   const [activeCondition, setActiveCondition] = useState<string[]>([]);
   
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLoadData = async () => {
-  setIsLoading(true);
-  
-  setActiveRegions(draftRegions);
-  setActiveTime(draftTime);
-  setActiveYear(draftYear);
-  setActiveCondition(draftCondition);
+    setIsLoading(true);
+    
+    setActiveRegions(draftRegions);
+    setActiveTime(draftTime);
+    setActiveYear(draftYear);
+    setActiveCondition(draftCondition);
 
-  try {
-    // Fetch the real data from Django
-    const data = await fetchWeatherData(draftRegions, draftTime, draftYear);
-    setBackendData(data);
-  } catch (error) {
-    console.error("Failed to load data:", error);
-    setBackendData([]);
-  } finally {
-    setIsLoading(false);
-  }
+    try {
+      // Fetch the real data from Django
+      const data = await fetchWeatherData(draftRegions, draftTime, draftYear);
+      setBackendData(data);
+    } catch (error) {
+      console.error("Failed to load data:", error);
+      setBackendData([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClear = () => {
     setDraftRegions([]);
     setDraftTime('');
-    setDraftYear('2026'); // Updated to 2026
+    setDraftYear('2026');
     setDraftCondition([]);
     setActiveRegions([]);
     setActiveTime('');
-    setActiveYear('2026'); // Updated to 2026
+    setActiveYear('2026');
     setActiveCondition([]);
+    setBackendData([]); // Clear the table data as well
   };
 
   const hasDataLoaded = activeRegions.length > 0 && activeTime !== '' && activeCondition.length > 0;
 
+  // Dynamically calculate KPIs based on the real backend data
+  const calculateKPIs = (data: any[]) => {
+    if (!data || data.length === 0) return { minTemp: 0, maxTemp: 0, meanTemp: 0, sunshineHours: 0, totalRainfall: 0 };
+
+    const validTmin = data.filter(d => d.tmin !== null).map(d => d.tmin);
+    const validTmax = data.filter(d => d.tmax !== null).map(d => d.tmax);
+    const validTmean = data.filter(d => d.tmean !== null).map(d => d.tmean);
+    const validSun = data.filter(d => d.sun !== null).map(d => d.sun);
+    const validRain = data.filter(d => d.rain !== null).map(d => d.rain);
+
+    return {
+      minTemp: validTmin.length ? Math.min(...validTmin) : 0,
+      maxTemp: validTmax.length ? Math.max(...validTmax) : 0,
+      meanTemp: validTmean.length ? Number((validTmean.reduce((a, b) => a + b, 0) / validTmean.length).toFixed(1)) : 0,
+      sunshineHours: validSun.length ? Number(validSun.reduce((a, b) => a + b, 0).toFixed(1)) : 0,
+      totalRainfall: validRain.length ? Number(validRain.reduce((a, b) => a + b, 0).toFixed(1)) : 0,
+    };
+  };
+
   const kpiData = hasDataLoaded 
-    ? { minTemp: -1.2, maxTemp: 34.0, meanTemp: 14.2, sunshineHours: 6.4, totalRainfall: 845 }
+    ? calculateKPIs(backendData)
     : { minTemp: 0, maxTemp: 0, meanTemp: 0, sunshineHours: 0, totalRainfall: 0 };
 
   return (
@@ -74,6 +95,7 @@ export default function App() {
         <StatCards data={kpiData} />
         
         <TimelineChart
+          data={backendData} // <-- Passed the real data here
           selectedRegions={activeRegions}
           timeRange={activeTime}
           selectedCondition={activeCondition}
@@ -81,6 +103,7 @@ export default function App() {
         />
 
         <Heatmap 
+          data={backendData} // <-- Passed the real data here
           selectedRegions={activeRegions}
           timeRange={activeTime}
           selectedCondition={activeCondition}
