@@ -170,10 +170,19 @@ export const DataTable: React.FC<DataTableProps> = ({ data, selectedRegions, tim
 
   const getTableSubtitle = () => {
     if (!hasDataLoaded || viewMode !== 'matrix') return null;
+    
+    // 🔥 THE FIX: Dynamically generate the string label
+    const isMultiYear = ['1y', '5y', '10y', 'all'].includes(timeRange);
+    let timeLabel = selectedYear;
+    if (timeRange === 'all') timeLabel = 'All Historic Years';
+    else if (timeRange === '10y') timeLabel = 'Last 10 Years';
+    else if (timeRange === '5y') timeLabel = 'Last 5 Years';
+    else if (timeRange === '1y') timeLabel = 'Previous Year';
+
     if (isMultiRegion) {
-      return <>Matrix mapping <strong className="text-blue-600">{formatCondition(selectedCondition[0]).toUpperCase()}</strong> across multiple regions for <strong>{selectedYear}</strong>.</>;
+      return <>Matrix mapping <strong className="text-blue-600">{formatCondition(selectedCondition[0]).toUpperCase()}</strong> across multiple regions for <strong>{timeLabel}</strong>.</>;
     }
-    return <>Matrix mapping multiple conditions for <strong className="text-blue-600">{selectedRegions[0]}</strong> in <strong>{selectedYear}</strong>.</>;
+    return <>Matrix mapping multiple conditions for <strong className="text-blue-600">{selectedRegions[0]}</strong> in <strong>{timeLabel}</strong>.</>;
   };
 
   return (

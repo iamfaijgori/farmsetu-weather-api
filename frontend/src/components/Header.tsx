@@ -47,7 +47,6 @@ export const Header: React.FC<HeaderProps> = ({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdowns if clicked outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (headerRef.current && !headerRef.current.contains(event.target as Node)) {
@@ -58,12 +57,10 @@ export const Header: React.FC<HeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Generate Years from 1884 to Current Year
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1883 }, (_, i) => (currentYear - i).toString());
   const isMultiYear = ['1y', '5y', '10y', 'all'].includes(selectedTimeRange);
 
-  // Dynamic Label Helpers
   const getRegionLabel = () => {
     if (selectedRegions.length === 0) return 'Select Region';
     if (selectedRegions.length === REGIONS.length) return 'All Regions';
@@ -78,26 +75,48 @@ export const Header: React.FC<HeaderProps> = ({
     return `${selectedCondition.length} Conditions`;
   };
 
-  // Select All Handlers
+  // 🔥 THE FIX: Rule Enforcement Handlers
+  const handleRegionSelect = (region: string, checked: boolean) => {
+    const newRegions = checked ? [...selectedRegions, region] : selectedRegions.filter(r => r !== region);
+    onRegionChange(newRegions);
+    if (newRegions.length > 1 && selectedCondition.length > 1) {
+      onConditionChange([selectedCondition[0]]);
+    }
+  };
+
   const handleSelectAllRegions = (checked: boolean) => {
-    onRegionChange(checked ? [...REGIONS] : []);
+    if (checked) {
+      onRegionChange([...REGIONS]);
+      if (selectedCondition.length > 1) onConditionChange([selectedCondition[0]]);
+    } else {
+      onRegionChange([]);
+    }
+  };
+
+  const handleConditionSelect = (condId: string, checked: boolean) => {
+    const newConds = checked ? [...selectedCondition, condId] : selectedCondition.filter(c => c !== condId);
+    onConditionChange(newConds);
+    if (newConds.length > 1 && selectedRegions.length > 1) {
+      onRegionChange([selectedRegions[0]]);
+    }
   };
 
   const handleSelectAllConditions = (checked: boolean) => {
-    onConditionChange(checked ? CONDITIONS.map(c => c.id) : []);
+    if (checked) {
+      onConditionChange(CONDITIONS.map(c => c.id));
+      if (selectedRegions.length > 1) onRegionChange([selectedRegions[0]]);
+    } else {
+      onConditionChange([]);
+    }
   };
 
   return (
     <div ref={headerRef} className="w-full bg-white rounded-2xl p-4 sm:p-5 flex flex-col xl:flex-row items-center justify-between shadow-sm border border-slate-200 mb-6 gap-4 z-50 relative">
-      
-      {/* Title */}
       <div className="flex-shrink-0">
         <h1 className="text-xl font-bold text-slate-800 tracking-tight">Weather Monitoring System</h1>
       </div>
 
-      {/* Controls Container */}
       <div className="flex flex-wrap items-center justify-center xl:justify-end gap-3 w-full">
-        
         {/* REGION DROPDOWN */}
         <div className="relative">
           <button 
@@ -125,10 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
                     type="checkbox" 
                     className="rounded border-slate-300 text-blue-500 focus:ring-blue-500 mr-3 cursor-pointer w-4 h-4"
                     checked={selectedRegions.includes(region)}
-                    onChange={(e) => {
-                      if (e.target.checked) onRegionChange([...selectedRegions, region]);
-                      else onRegionChange(selectedRegions.filter(r => r !== region));
-                    }}
+                    onChange={(e) => handleRegionSelect(region, e.target.checked)}
                   />
                   <span className="text-sm text-slate-600">{region}</span>
                 </label>
@@ -137,7 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* DURATION DROPDOWN (Native Select for simplicity) */}
+        {/* DURATION DROPDOWN */}
         <select 
           value={selectedTimeRange}
           onChange={(e) => onTimeRangeChange(e.target.value)}
@@ -149,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({
           ))}
         </select>
 
-        {/* YEAR DROPDOWN (Native Select) */}
+        {/* YEAR DROPDOWN */}
         <select 
           value={selectedYear}
           onChange={(e) => onYearChange(e.target.value)}
@@ -188,10 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
                     type="checkbox" 
                     className="rounded border-slate-300 text-blue-500 focus:ring-blue-500 mr-3 cursor-pointer w-4 h-4"
                     checked={selectedCondition.includes(cond.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) onConditionChange([...selectedCondition, cond.id]);
-                      else onConditionChange(selectedCondition.filter(c => c !== cond.id));
-                    }}
+                    onChange={(e) => handleConditionSelect(cond.id, e.target.checked)}
                   />
                   <span className="text-sm text-slate-600">{cond.label}</span>
                 </label>
@@ -210,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button 
             onClick={() => {
-              setOpenDropdown(null); // Close dropdowns on load
+              setOpenDropdown(null);
               onLoadData();
             }}
             disabled={selectedRegions.length === 0 || selectedTimeRange === '' || selectedCondition.length === 0}
@@ -219,7 +232,6 @@ export const Header: React.FC<HeaderProps> = ({
             Load Data
           </button>
         </div>
-
       </div>
     </div>
   );

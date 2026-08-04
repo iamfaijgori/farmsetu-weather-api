@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface HeatmapProps {
   data: any[];
@@ -42,7 +42,13 @@ const getColorClass = (type: string, value: number | string | null) => {
 };
 
 export const Heatmap: React.FC<HeatmapProps> = ({ data, selectedRegions, timeRange, selectedCondition, hasDataLoaded }) => {
+  const [currentPage, setCurrentPage] = useState(1);
   
+  // Reset pagination to page 1 whenever the user changes dropdown filters
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [timeRange, selectedRegions, selectedCondition, data]);
+
   if (!hasDataLoaded || !data || data.length === 0) {
     return null;
   }
@@ -52,76 +58,76 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, selectedRegions, timeRan
   const activeMetric = selectedCondition[0] || 'tmax';
   const activeMetricName = formatCondition(activeMetric);
   
-  const periods = timeRange === 'seasonal' 
-    ? ['Win', 'Spr', 'Sum', 'Aut', 'Ann'] 
-    : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  // FIXED LOGIC: Extract the exact year from the payload without checking the current date
+  const isMultiYear = ['1y', '5y', '10y', 'all'].includes(timeRange);
   const displayYear = Math.max(...data.map(d => d.year));
-  const currentYearData = data.filter(d => d.year === displayYear);
+
+  let periods: string[] | number[] = [];
+  if (isMultiYear) {
+      periods = Array.from(new Set(data.filter(d => d.period === 'Ann').map(d => d.year))).sort((a, b) => a - b);
+  } else if (timeRange === 'seasonal') {
+      periods = ['Win', 'Spr', 'Sum', 'Aut', 'Ann'];
+  } else {
+      periods = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  }
+
+  // Paginator Logic (12 items per page)
+  const ITEMS_PER_PAGE = 12;
+  const totalPages = Math.ceil(periods.length / ITEMS_PER_PAGE);
+  const currentPeriods = periods.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  let timeLabel = displayYear.toString();
+  if (timeRange === 'all') timeLabel = 'All Historic Years';
+  else if (timeRange === '10y') timeLabel = 'Last 10 Years';
+  else if (timeRange === '5y') timeLabel = 'Last 5 Years';
+  else if (timeRange === '1y') timeLabel = 'Previous Year';
+
+  const dataMap = new Map();
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i];
+    dataMap.set(`${d.year}-${d.region}-${d.period}`, d);
+  }
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm mt-6 border border-slate-200 overflow-x-auto">
+    <div className="bg-white p-6 rounded-2xl shadow-sm mt-6 border border-slate-200 overflow-hidden flex flex-col">
       <div className="mb-6">
         <h3 className="text-lg font-bold text-slate-900 tracking-tight">Distribution Heatmap</h3>
         <p className="text-xs text-slate-500 mt-1">
           {isMultiRegion ? (
-            <>Comparing <strong className="text-blue-600">{activeMetricName.toUpperCase()}</strong> across multiple regions for <strong>{displayYear}</strong>.</>
+            <>Comparing <strong className="text-blue-600">{activeMetricName.toUpperCase()}</strong> across multiple regions for <strong>{timeLabel}</strong>.</>
           ) : (
-            <>Comparing multiple conditions for <strong className="text-blue-600">{primaryRegion}</strong> in <strong>{displayYear}</strong>.</>
+            <>Comparing multiple conditions for <strong className="text-blue-600">{primaryRegion}</strong> in <strong>{timeLabel}</strong>.</>
           )}
         </p>
       </div>
 
-      <div className="min-w-[800px]">
-        {/* Header Row */}
-        <div className="flex mb-2">
-          <div className="w-32 flex-shrink-0"></div>
-          {periods.map(period => (
-            <div key={period} className="flex-1 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {period}
-            </div>
-          ))}
-        </div>
-
-        {isMultiRegion ? (
-          // MULTI-REGION PIVOT
-          selectedRegions.map(region => (
-            <div key={region} className="flex mb-2 items-center">
-              <div className="w-32 flex-shrink-0 text-sm font-medium text-slate-600 truncate pr-2" title={region}>
-                {region}
+      <div className="overflow-x-auto pb-4">
+        <div className="min-w-[800px]">
+          {/* Header Row */}
+          <div className="flex mb-2">
+            <div className="w-32 flex-shrink-0"></div>
+            {currentPeriods.map(period => (
+              <div key={period} className="flex-1 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                {period}
               </div>
-              {periods.map(period => {
-                const record = currentYearData.find(d => d.period === period && d.region === region);
-                const value = record && record[activeMetric] !== null && record[activeMetric] !== undefined ? record[activeMetric] : '-';
-                const colorClass = getColorClass(activeMetricName, value);
-                
-                return (
-                  <div key={`${region}-${period}`} className="flex-1 px-1">
-                    <div className={`h-10 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${colorClass}`}>
-                      {value}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))
-        ) : (
-          // SINGLE-REGION PIVOT
-          selectedCondition.map(cond => {
-            const condName = formatCondition(cond);
-            return (
-              <div key={cond} className="flex mb-2 items-center">
-                <div className="w-32 flex-shrink-0 text-sm font-medium text-slate-600 truncate pr-2" title={condName}>
-                  {condName}
+            ))}
+          </div>
+
+          {isMultiRegion ? (
+            // MULTI-REGION PIVOT
+            selectedRegions.map(region => (
+              <div key={region} className="flex mb-2 items-center">
+                <div className="w-32 flex-shrink-0 text-sm font-medium text-slate-600 truncate pr-2" title={region}>
+                  {region}
                 </div>
-                {periods.map(period => {
-                  const record = currentYearData.find(d => d.period === period && d.region === primaryRegion);
-                  const value = record && record[cond] !== null && record[cond] !== undefined ? record[cond] : '-';
-                  const colorClass = getColorClass(condName, value);
+                {currentPeriods.map(period => {
+                  const targetYear = isMultiYear ? period : displayYear;
+                  const targetPeriod = isMultiYear ? 'Ann' : period;
+                  const record = dataMap.get(`${targetYear}-${region}-${targetPeriod}`);
+                  const value = record && record[activeMetric] !== null && record[activeMetric] !== undefined ? record[activeMetric] : '-';
+                  const colorClass = getColorClass(activeMetricName, value);
                   
                   return (
-                    <div key={`${cond}-${period}`} className="flex-1 px-1">
+                    <div key={`${region}-${period}`} className="flex-1 px-1">
                       <div className={`h-10 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${colorClass}`}>
                         {value}
                       </div>
@@ -129,13 +135,65 @@ export const Heatmap: React.FC<HeatmapProps> = ({ data, selectedRegions, timeRan
                   );
                 })}
               </div>
-            );
-          })
-        )}
+            ))
+          ) : (
+            // SINGLE-REGION PIVOT
+            selectedCondition.map(cond => {
+              const condName = formatCondition(cond);
+              return (
+                <div key={cond} className="flex mb-2 items-center">
+                  <div className="w-32 flex-shrink-0 text-sm font-medium text-slate-600 truncate pr-2" title={condName}>
+                    {condName}
+                  </div>
+                  {currentPeriods.map(period => {
+                    const targetYear = isMultiYear ? period : displayYear;
+                    const targetPeriod = isMultiYear ? 'Ann' : period;
+                    const record = dataMap.get(`${targetYear}-${primaryRegion}-${targetPeriod}`);
+                    const value = record && record[cond] !== null && record[cond] !== undefined ? record[cond] : '-';
+                    const colorClass = getColorClass(condName, value);
+                    
+                    return (
+                      <div key={`${cond}-${period}`} className="flex-1 px-1">
+                        <div className={`h-10 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${colorClass}`}>
+                          {value}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+          <span className="text-xs font-medium text-slate-500">
+            Showing Page {currentPage} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Prev
+            </button>
+            <button 
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 text-xs font-semibold rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Threshold Legend */}
-      <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6">
+      <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-6">
         <div className="flex items-center gap-4">
           <span className="text-xs font-bold text-slate-400 w-32">TEMPERATURE (°C):</span>
           <div className="flex gap-2 text-xs font-medium">
