@@ -4,13 +4,13 @@ import { StatCards } from './components/StatCards';
 import { TimelineChart } from './components/TimelineChart';
 import { Heatmap } from './components/Heatmap';
 import { DataTable } from './components/DataTable';
-
+import { fetchWeatherData } from './services/weatherService';
 export default function App() {
   const [draftRegions, setDraftRegions] = useState<string[]>(['UK']);
   const [draftTime, setDraftTime] = useState<string>('');
   const [draftYear, setDraftYear] = useState<string>('2026'); // Updated to 2026
   const [draftCondition, setDraftCondition] = useState<string[]>([]);
-  
+  const [backendData, setBackendData] = useState<any[]>([]);
   const [activeRegions, setActiveRegions] = useState<string[]>([]);
   const [activeTime, setActiveTime] = useState<string>('');
   const [activeYear, setActiveYear] = useState<string>('2026'); // Updated to 2026
@@ -18,13 +18,24 @@ export default function App() {
   
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLoadData = () => {
-    setIsLoading(true);
-    setActiveRegions(draftRegions);
-    setActiveTime(draftTime);
-    setActiveYear(draftYear);
-    setActiveCondition(draftCondition);
-    setTimeout(() => setIsLoading(false), 600);
+  const handleLoadData = async () => {
+  setIsLoading(true);
+  
+  setActiveRegions(draftRegions);
+  setActiveTime(draftTime);
+  setActiveYear(draftYear);
+  setActiveCondition(draftCondition);
+
+  try {
+    // Fetch the real data from Django
+    const data = await fetchWeatherData(draftRegions, draftTime, draftYear);
+    setBackendData(data);
+  } catch (error) {
+    console.error("Failed to load data:", error);
+    setBackendData([]);
+  } finally {
+    setIsLoading(false);
+  }
   };
 
   const handleClear = () => {
@@ -77,6 +88,7 @@ export default function App() {
         />
 
         <DataTable 
+          data={backendData} 
           selectedRegions={activeRegions}
           timeRange={activeTime}
           selectedYear={activeYear}

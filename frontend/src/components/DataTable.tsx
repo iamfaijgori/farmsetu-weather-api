@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
 interface DataTableProps {
+  data: any[];
   selectedRegions: string[];
   timeRange: string;
   selectedYear: string;
@@ -15,24 +16,26 @@ const ConditionIcon = ({ type }: { type: string }) => {
   return <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" /></svg>;
 };
 
-// Helper to format condition labels nicely
 const formatCondition = (c: string) => ({
   tmin: 'Min Temp', tmax: 'Max Temp', tmean: 'Mean Temp', sun: 'Sunshine', rain: 'Rainfall'
 }[c] || c);
 
-export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange, selectedYear, selectedCondition, hasDataLoaded }) => {
+// 1. FIXED: Master Table Chronological Sort Order Array
+const PERIOD_ORDER = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Win', 'Spr', 'Sum', 'Aut', 'Ann'];
+
+export const DataTable: React.FC<DataTableProps> = ({ data, selectedRegions, timeRange, selectedYear, selectedCondition, hasDataLoaded }) => {
   const [viewMode, setViewMode] = useState<'master' | 'matrix'>('master');
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 10;
   
   const isMultiRegion = selectedRegions.length > 1;
 
-  // 1. Column Definition Logic
   const getMatrixColumns = () => {
     let cols = [isMultiRegion ? 'Location' : 'Condition'];
     if (['1y', '5y', '10y', 'all'].includes(timeRange)) cols = ['Year', isMultiRegion ? 'Location' : 'Condition'];
     
-    if (timeRange === 'monthly' || timeRange === '1y') {
+    // 2. FIXED: Aligned exactly with Django's output
+    if (timeRange === 'monthly') {
       cols = [...cols, 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     } else if (timeRange === 'seasonal') {
       cols = [...cols, 'Win', 'Spr', 'Sum', 'Aut', 'Ann'];
@@ -42,74 +45,97 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
     return cols;
   };
 
-  const masterColumns = ['DATE', 'LOCATION', 'MIN TEMP', 'MAX TEMP', 'MEAN TEMP', 'SUNSHINE (HRS)', 'RAINFALL (MM)', 'CONDITION'];
+  const masterColumns = ['YEAR', 'PERIOD', 'LOCATION', 'MIN TEMP', 'MAX TEMP', 'MEAN TEMP', 'SUNSHINE (HRS)', 'RAINFALL (MM)', 'CONDITION'];
   const currentColumns = viewMode === 'matrix' ? getMatrixColumns() : masterColumns;
 
-  // 2. Generate Data based on View Mode
   const generateData = () => {
-    if (!hasDataLoaded) return [];
-    let data: any[] = [];
+    let processedData: any[] = [];
     
     if (viewMode === 'master') {
-      for (let i = 0; i < 45; i++) {
-        const isFrosty = i % 7 === 0;
-        const isRainy = i % 3 === 0;
-        data.push({
+      if (!hasDataLoaded || !data || data.length === 0) return [];
+      
+      // 3. FIXED: Intercept the data and sort chronologically based on PERIOD_ORDER
+      const sortedData = [...data].sort((a, b) => {
+        if (b.year !== a.year) return b.year - a.year;
+        return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period);
+      });
+
+      processedData = sortedData.map((d, i) => {
+        let cond = 'Clear';
+        if (d.tmin !== null && d.tmin <= 0) cond = 'Frosty';
+        else if (d.rain !== null && d.rain > 50) cond = 'Rainy'; 
+
+        return {
           id: `rec-${i}`,
-          col0: `${selectedYear}-10-${String((i % 30) + 1).padStart(2, '0')}`,
-          col1: selectedRegions[i % selectedRegions.length],
-          col2: Number((isFrosty ? -1.5 : 8 + Math.random() * 5).toFixed(1)),
-          col3: Number((isFrosty ? 4.5 : 15 + Math.random() * 10).toFixed(1)),
-          col4: Number((isFrosty ? 1.5 : 11 + Math.random() * 6).toFixed(1)),
-          col5: Number((isRainy ? 1.2 : 6 + Math.random() * 4).toFixed(1)),
-          col6: Number((isRainy ? 15.5 : 0).toFixed(1)),
-          condition: isFrosty ? 'Frosty' : isRainy ? 'Rainy' : 'Clear',
-        });
-      }
+          col0: d.year,
+          col1: d.period,
+          col2: d.region,
+          col3: d.tmin !== null ? d.tmin : '-',
+          col4: d.tmax !== null ? d.tmax : '-',
+          col5: d.tmean !== null ? d.tmean : '-',
+          col6: d.sun !== null ? d.sun : '-',
+          col7: d.rain !== null ? d.rain : '-',
+          condition: cond
+        };
+      });
     } else {
-      const yearsList = ['1y', '5y', '10y', 'all'].includes(timeRange) ? [2025, 2024, 2023] : [selectedYear];
+      // 4. FIXED: Always generate matrix years manually so the UI grid renders even if DB data is missing
+      const currentYear = new Date().getFullYear();
+      let targetYears: number[] = [];
+      
+      if (timeRange === 'monthly' || timeRange === 'seasonal') {
+        targetYears = [parseInt(selectedYear) || currentYear];
+      } else if (timeRange === '1y') {
+        targetYears = [currentYear - 1];
+      } else if (timeRange === '5y') {
+        for(let i=0; i<5; i++) targetYears.push(currentYear - i);
+      } else if (timeRange === '10y') {
+        for(let i=0; i<10; i++) targetYears.push(currentYear - i);
+      } else if (timeRange === 'all') {
+        for(let y=currentYear; y>=1884; y--) targetYears.push(y);
+      }
+
+      const isMultiYear = ['1y', '5y', '10y', 'all'].includes(timeRange);
+      const periods = currentColumns.slice(isMultiYear ? 2 : 1);
       
       if (isMultiRegion) {
-        const activeMetricForMatrix = selectedCondition[0] || 'tmean';
-        const baseVal = activeMetricForMatrix.includes('rain') ? 80 : 12;
-        selectedRegions.forEach((reg, rIdx) => {
-          yearsList.forEach(yr => {
-            let row: any = { id: `${reg}-${yr}`, col0: reg };
-            let offset = 1;
-            if (['1y', '5y', '10y', 'all'].includes(timeRange)) {
-              row.col0 = yr;
-              row.col1 = reg;
-              offset = 2;
-            }
-            for (let i = offset; i < currentColumns.length; i++) {
-              row[`col${i}`] = Number((baseVal + Math.sin(i) * 5 + rIdx).toFixed(1));
-            }
-            data.push(row);
+        const activeMetric = selectedCondition[0] || 'tmean'; 
+        selectedRegions.forEach((reg) => {
+          targetYears.forEach(yr => {
+            let row: any = { id: `${reg}-${yr}` };
+            let offset = 0;
+            if (isMultiYear) { row.col0 = yr; row.col1 = reg; offset = 2; } 
+            else { row.col0 = reg; offset = 1; }
+            
+            periods.forEach((period, pIdx) => {
+              const record = (data || []).find(d => d.year === yr && d.region === reg && d.period === period);
+              row[`col${offset + pIdx}`] = record && record[activeMetric] !== null && record[activeMetric] !== undefined ? record[activeMetric] : '-';
+            });
+            processedData.push(row);
           });
         });
       } else {
         const condNameMap = selectedCondition.map(formatCondition);
+        const reg = selectedRegions[0];
+        
         selectedCondition.forEach((cond, cIdx) => {
-          const baseVal = cond === 'rain' ? 80 : cond === 'sun' ? 120 : cond === 'tmax' ? 15 : 5;
           const condName = condNameMap[cIdx];
-          
-          yearsList.forEach(yr => {
-            let row: any = { id: `${cond}-${yr}`, col0: condName };
-            let offset = 1;
-            if (['1y', '5y', '10y', 'all'].includes(timeRange)) {
-              row.col0 = yr;
-              row.col1 = condName;
-              offset = 2;
-            }
-            for (let i = offset; i < currentColumns.length; i++) {
-              row[`col${i}`] = Number((baseVal + Math.sin(i) * (cond === 'sun' ? 30 : 5) + cIdx).toFixed(1));
-            }
-            data.push(row);
+          targetYears.forEach(yr => {
+            let row: any = { id: `${cond}-${yr}` };
+            let offset = 0;
+            if (isMultiYear) { row.col0 = yr; row.col1 = condName; offset = 2; } 
+            else { row.col0 = condName; offset = 1; }
+            
+            periods.forEach((period, pIdx) => {
+              const record = (data || []).find(d => d.year === yr && d.region === reg && d.period === period);
+              row[`col${offset + pIdx}`] = record && record[cond] !== null && record[cond] !== undefined ? record[cond] : '-';
+            });
+            processedData.push(row);
           });
         });
       }
     }
-    return data;
+    return processedData;
   };
 
   const tableData = generateData();
@@ -120,9 +146,8 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
     if (tableData.length === 0) return;
     const csvRows = [currentColumns.join(',')];
     tableData.forEach(row => {
-      // In master mode, the 8th column is 'condition'. In matrix mode, it's just 'col7'.
       const rowValues = currentColumns.map((_, idx) => {
-         if (viewMode === 'master' && idx === 7) return row.condition;
+         if (viewMode === 'master' && idx === 8) return row.condition;
          return row[`col${idx}`];
       });
       csvRows.push(rowValues.join(','));
@@ -167,7 +192,7 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
         <div className="p-12 text-center text-slate-400 font-medium">Load data to view detailed records.</div>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-h-[400px]">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50">
@@ -177,50 +202,64 @@ export const DataTable: React.FC<DataTableProps> = ({ selectedRegions, timeRange
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {paginatedData.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
-                    {currentColumns.map((col, idx) => {
-                      
-                      // Fix: Render the condition cell perfectly aligned in the 8th column loop
-                      if (viewMode === 'master' && idx === 7) {
+                {paginatedData.length === 0 ? (
+                  <tr>
+                    <td colSpan={currentColumns.length} className="p-8 text-center text-slate-500">
+                      No matching records found for this selection.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedData.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                      {currentColumns.map((col, idx) => {
+                        
+                        if (viewMode === 'master' && idx === 8) {
+                          return (
+                            <td key={idx} className="px-6 py-4 text-sm font-medium text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <ConditionIcon type={row.condition} /> {row.condition}
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        const val = row[`col${idx}`];
+                        let cellClass = "px-6 py-4 text-sm font-medium text-slate-600 whitespace-nowrap";
+                        
+                        if (viewMode === 'master') {
+                          if (idx === 2) cellClass = "px-6 py-4 text-sm font-semibold text-blue-500";
+                          if (idx === 3 && val !== '-' && val < 0) cellClass = "px-6 py-4 text-sm font-bold text-red-500";
+                          else if (idx >= 3 && idx <= 5) cellClass = "px-6 py-4 text-sm font-bold text-slate-700";
+                          if (idx === 6) cellClass = "px-6 py-4 text-sm font-semibold text-orange-500";
+                        }
+                        
                         return (
-                          <td key={idx} className="px-6 py-4 text-sm font-medium text-slate-600">
-                            <div className="flex items-center gap-2">
-                              <ConditionIcon type={row.condition} /> {row.condition}
-                            </div>
+                          <td key={idx} className={cellClass}>
+                            {val}{viewMode === 'master' && (idx >= 3 && idx <= 5) && val !== '-' ? '°C' : ''}
                           </td>
                         );
-                      }
-
-                      const val = row[`col${idx}`];
-                      let cellClass = "px-6 py-4 text-sm font-medium text-slate-600 whitespace-nowrap";
-                      if (viewMode === 'master') {
-                        if (idx === 1) cellClass = "px-6 py-4 text-sm font-semibold text-blue-500";
-                        if (idx === 2 && val < 0) cellClass = "px-6 py-4 text-sm font-bold text-red-500";
-                        else if (idx >= 2 && idx <= 4) cellClass = "px-6 py-4 text-sm font-bold text-slate-700";
-                        if (idx === 5) cellClass = "px-6 py-4 text-sm font-semibold text-orange-500";
-                      }
-                      
-                      return (
-                        <td key={idx} className={cellClass}>
-                          {val}{viewMode === 'master' && (idx >= 2 && idx <= 4) ? '°C' : ''}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                      })}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between p-6 border-t border-slate-100 gap-4">
-            <span className="text-sm text-slate-400">Showing {(currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, tableData.length)} of {tableData.length} records</span>
+            <span className="text-sm text-slate-400">Showing {tableData.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to {Math.min(currentPage * rowsPerPage, tableData.length)} of {tableData.length} records</span>
             <div className="flex items-center gap-1">
               <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">Prev</button>
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold ${currentPage === i + 1 ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>{i + 1}</button>
-              ))}
-              <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">Next</button>
+              {Array.from({ length: totalPages }).map((_, i) => {
+                 if (totalPages > 7 && i > 2 && i < totalPages - 3 && i + 1 !== currentPage) {
+                   if (i === 3 || i === totalPages - 4) return <span key={i} className="px-1 text-slate-400">...</span>;
+                   return null;
+                 }
+                 return (
+                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold ${currentPage === i + 1 ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>{i + 1}</button>
+                );
+              })}
+              <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:bg-slate-100 disabled:opacity-50 transition-colors">Next</button>
             </div>
           </div>
         </>
