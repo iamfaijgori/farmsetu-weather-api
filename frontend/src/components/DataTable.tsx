@@ -49,12 +49,19 @@ export const DataTable: React.FC<DataTableProps> = ({ data, selectedRegions, tim
   const currentColumns = viewMode === 'matrix' ? getMatrixColumns() : masterColumns;
 
   const generateData = () => {
+    if (!hasDataLoaded || !data || data.length === 0) return [];
+    
+    // 🔥 THE FIX: Create a lightning-fast Hash Map ONCE (O(N) complexity)
+    // Key format: "Year-Region-Period"
+    const dataMap = new Map();
+    for (let i = 0; i < data.length; i++) {
+      const d = data[i];
+      dataMap.set(`${d.year}-${d.region}-${d.period}`, d);
+    }
+
     let processedData: any[] = [];
     
     if (viewMode === 'master') {
-      if (!hasDataLoaded || !data || data.length === 0) return [];
-      
-      // 3. FIXED: Intercept the data and sort chronologically based on PERIOD_ORDER
       const sortedData = [...data].sort((a, b) => {
         if (b.year !== a.year) return b.year - a.year;
         return PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period);
@@ -79,7 +86,6 @@ export const DataTable: React.FC<DataTableProps> = ({ data, selectedRegions, tim
         };
       });
     } else {
-      // 4. FIXED: Always generate matrix years manually so the UI grid renders even if DB data is missing
       const currentYear = new Date().getFullYear();
       let targetYears: number[] = [];
       
@@ -108,7 +114,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, selectedRegions, tim
             else { row.col0 = reg; offset = 1; }
             
             periods.forEach((period, pIdx) => {
-              const record = (data || []).find(d => d.year === yr && d.region === reg && d.period === period);
+              // 🔥 THE FIX: Instant O(1) lookup instead of Array.find()
+              const record = dataMap.get(`${yr}-${reg}-${period}`);
               row[`col${offset + pIdx}`] = record && record[activeMetric] !== null && record[activeMetric] !== undefined ? record[activeMetric] : '-';
             });
             processedData.push(row);
@@ -127,7 +134,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, selectedRegions, tim
             else { row.col0 = condName; offset = 1; }
             
             periods.forEach((period, pIdx) => {
-              const record = (data || []).find(d => d.year === yr && d.region === reg && d.period === period);
+              // 🔥 THE FIX: Instant O(1) lookup instead of Array.find()
+              const record = dataMap.get(`${yr}-${reg}-${period}`);
               row[`col${offset + pIdx}`] = record && record[cond] !== null && record[cond] !== undefined ? record[cond] : '-';
             });
             processedData.push(row);

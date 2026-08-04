@@ -58,26 +58,35 @@ export const TimelineChart: React.FC<TimelineChartProps> = ({ data, selectedRegi
 
   const xAxisItems = getXAxisItems();
 
-  // 2. Pivot the Data for Recharts
+  // 2. THE OPTIMIZATION: Create Hash Map for instant charting (O(1) Time Complexity)
+  const dataMap = new Map();
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i];
+    dataMap.set(`${d.year}-${d.region}-${d.period}`, d);
+  }
+
+  // 3. Pivot the Data for Recharts using the Map
   const chartData = xAxisItems.map(item => {
     const row: any = { name: item.toString() };
     
     if (isMultiRegion) {
       // MULTI-REGION: Create a data point for every selected region
       selectedRegions.forEach(region => {
-        const record = data.find(d => 
-          d.region === region && 
-          (['1y', '5y', '10y', 'all'].includes(timeRange) ? d.year === item && d.period === 'Ann' : d.period === item)
-        );
+        const targetYear = ['1y', '5y', '10y', 'all'].includes(timeRange) ? item : (data[0]?.year || new Date().getFullYear());
+        const targetPeriod = ['1y', '5y', '10y', 'all'].includes(timeRange) ? 'Ann' : item;
+        
+        // Instant map lookup instead of slow Array.find()
+        const record = dataMap.get(`${targetYear}-${region}-${targetPeriod}`);
         row[region] = record && record[activeMetric] !== null && record[activeMetric] !== undefined ? record[activeMetric] : null;
       });
     } else {
       // SINGLE-REGION: Create a data point for every selected condition
       activeConditions.forEach(cond => {
-        const record = data.find(d => 
-          d.region === primaryRegion && 
-          (['1y', '5y', '10y', 'all'].includes(timeRange) ? d.year === item && d.period === 'Ann' : d.period === item)
-        );
+        const targetYear = ['1y', '5y', '10y', 'all'].includes(timeRange) ? item : (data[0]?.year || new Date().getFullYear());
+        const targetPeriod = ['1y', '5y', '10y', 'all'].includes(timeRange) ? 'Ann' : item;
+        
+        // Instant map lookup instead of slow Array.find()
+        const record = dataMap.get(`${targetYear}-${primaryRegion}-${targetPeriod}`);
         row[cond] = record && record[cond] !== null && record[cond] !== undefined ? record[cond] : null;
       });
     }
