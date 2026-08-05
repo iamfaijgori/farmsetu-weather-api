@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-2$#!eun09l7u-ib$28^iy(al#121qkqc(n6w!mw#($9etryekj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -85,9 +85,7 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        ssl_require=True
+        default=os.environ.get('DATABASE_URL')
     )
 }
 

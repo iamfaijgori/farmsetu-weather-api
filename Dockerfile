@@ -20,9 +20,3 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files into the container
 COPY . /app/
-
-# Expose the default port Render expects
-EXPOSE 10000
-
-# Start the production WSGI server
-CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:10000"]
