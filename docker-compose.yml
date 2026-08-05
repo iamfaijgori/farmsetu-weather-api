@@ -18,9 +18,8 @@ services:
       - .:/app
     ports:
       - "8000:8000"
-    environment:
-      - DEBUG=True
-      - DATABASE_URL=postgres://postgres_user:securepassword123@db:5432/farmsetu_db
+    env_file:
+        - .env
     depends_on:
       - db
   
