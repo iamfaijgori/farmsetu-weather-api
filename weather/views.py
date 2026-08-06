@@ -3,6 +3,8 @@ from rest_framework.response import Response
 from .models import WeatherRecord
 from .serializers import WeatherRecordSerializer
 import datetime
+from django.core.management import call_command
+from django.http import JsonResponse
 
 class WeatherRecordViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WeatherRecord.objects.all()
@@ -117,3 +119,25 @@ class WeatherRecordViewSet(viewsets.ReadOnlyModelViewSet):
             data.extend(calculated_seasons)
 
         return Response(data)
+
+
+def reset_cloud_database(request):
+    """
+    TEMPORARY ENDPOINT: Wipes the DB and loads the optimized JSON file.
+    """
+    try:
+        # 1. Wipe all existing data in the cloud
+        deleted_count, _ = WeatherRecord.objects.all().delete()
+        
+        # 2. Run the loaddata terminal command via Python
+        call_command('loaddata', 'weather_optimized.json')
+        
+        # 3. Check the new count
+        new_count = WeatherRecord.objects.count()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Successfully deleted {deleted_count} old records and loaded {new_count} new optimized records!"
+        })
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)})
