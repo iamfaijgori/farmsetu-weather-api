@@ -12,8 +12,8 @@ class WeatherRecordViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         current_year = datetime.datetime.now().year
         
-        # Bound data between 1884 and Current Year
-        queryset = WeatherRecord.objects.filter(year__gte=1884, year__lte=current_year)
+        # LOCKED TO BUSINESS REQUIREMENTS: Last 26 years (2000 to current)
+        queryset = WeatherRecord.objects.filter(year__gte=2000, year__lte=current_year)
         
         duration = self.request.query_params.get('duration')
         year_param = self.request.query_params.get('year')

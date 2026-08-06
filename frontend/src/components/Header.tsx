@@ -14,11 +14,7 @@ interface HeaderProps {
 }
 
 const REGIONS = [
-  'UK', 'England', 'Wales', 'Scotland', 'Northern Ireland',
-  'England and Wales', 'England N', 'England S', 'Scotland N', 'Scotland E',
-  'Scotland W', 'England E and NE', 'England NW and N Wales', 'Midlands',
-  'East Anglia', 'England SW and S Wales', 'England SE and Central S'
-];
+  'UK', 'England', 'Wales', 'Scotland'];
 
 const CONDITIONS = [
   { id: 'tmin', label: 'Min Temperature' },
@@ -58,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 1883 }, (_, i) => (currentYear - i).toString());
+  const years = Array.from({ length: currentYear - 1999 }, (_, i) => (currentYear - i).toString());
   const isMultiYear = ['1y', '5y', '10y', 'all'].includes(selectedTimeRange);
 
   const getRegionLabel = () => {
