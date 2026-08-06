@@ -28,7 +28,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = [
     'weather-api-backend-256u.onrender.com',
-    '.vercel.app', 
+    'farmsetu-weather-api.vercel.app', 
     'localhost',
     '127.0.0.1'
 ]
@@ -152,6 +152,6 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    "https://farmsetu-weather-api.vercel.app/", # Replace with your exact Vercel URL
+    "https://farmsetu-weather-api.vercel.app", # Replace with your exact Vercel URL
     "http://localhost:5173",
 ]
