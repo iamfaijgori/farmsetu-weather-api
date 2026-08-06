@@ -26,7 +26,12 @@ SECRET_KEY = 'django-insecure-2$#!eun09l7u-ib$28^iy(al#121qkqc(n6w!mw#($9etryekj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = [
+    'weather-api-backend-256u.onrender.com',
+    '.vercel.app', 
+    'localhost',
+    '127.0.0.1'
+]
 
 
 # Application definition
@@ -147,6 +152,6 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOWED_ORIGINS = [
+    "https://farmsetu-weather-api.vercel.app/", # Replace with your exact Vercel URL
     "http://localhost:5173",
-    "http://localhost:5174",
 ]
