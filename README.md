@@ -119,3 +119,26 @@ The system was developed with the following objectives:
                     ┌─────────────┐
                     │ UptimeRobot │
                     └─────────────┘
+Application Architecture
+
+The application uses a decoupled client-server architecture.
+flowchart TD
+
+    USER["User"]
+
+    FRONTEND["React + TypeScript + Vite<br/>Analytics Dashboard"]
+
+    API["Django REST API"]
+
+    LOGIC["Backend Query / Processing Logic"]
+
+    DB[("PostgreSQL<br/>Weather Data")]
+
+    UPTIME["UptimeRobot<br/>5-Minute Health Ping"]
+
+    USER --> FRONTEND
+    FRONTEND -->|HTTPS GET| API
+    API --> LOGIC
+    LOGIC --> DB
+
+    UPTIME -->|Periodic Request| API
